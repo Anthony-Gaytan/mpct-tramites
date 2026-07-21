@@ -8,3 +8,6 @@ public record AbrirCajaRequest(decimal MontoInicial);
 public record PagoPresencialRequest(Guid SolicitudId, MedioPago Medio, decimal Monto);
 public record CerrarCajaRequest(decimal TotalDeclarado);
 public record ResultadoInspeccionRequest(string Estado, string? Observaciones, string RespuestasJson, decimal? Latitud, decimal? Longitud, bool Firmar);
+public record CrearPersonalRequest(string Email, string Password, string Nombres, string Apellidos, string Rol);
+public record CambiarEstadoUsuarioRequest(bool Activo);
+public record ActualizarPerfilRequest(string Email, string Nombres, string Apellidos, string PasswordActual, string? PasswordNueva);

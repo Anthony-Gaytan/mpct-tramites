@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import './App.css'
 
 const API = import.meta.env.VITE_API_URL || '/api'
@@ -19,8 +19,8 @@ function App() {
   const [sunat, setSunat] = useState(null)
   const [loading, setLoading] = useState(false)
   const [session, setSession] = useState(() => JSON.parse(sessionStorage.getItem('mpct-session') || 'null'))
-  const [importResult, setImportResult] = useState(null)
-  const [syncStatus, setSyncStatus] = useState(null)
+  const [adminTab, setAdminTab] = useState('usuarios')
+  const [staff, setStaff] = useState([])
 
   const submitLogin = async (event) => {
     event.preventDefault(); setLoading(true); setNotice(null)
@@ -33,40 +33,27 @@ function App() {
     finally { setLoading(false) }
   }
 
-  const importSunat = async (event) => {
-    event.preventDefault(); setLoading(true); setNotice(null); setImportResult(null)
-    const form = new FormData(event.currentTarget)
-    const file = form.get('archivo')
-    if (!file?.size) { setNotice({ kind: 'error', text: 'Selecciona un archivo TXT del Padrón Reducido SUNAT.' }); setLoading(false); return }
-    try {
-      const response = await fetch(`${API}/sunat/padron/importar`, { method: 'POST', headers: { Authorization: `Bearer ${session.token}` }, body: form })
-      const data = await response.json().catch(() => ({}))
-      if (!response.ok) throw new Error(data.message || data.title || 'No se pudo importar el padrón.')
-      setImportResult(data); setNotice({ kind: 'success', text: `Importación completada: ${data.registros} registro(s).` }); event.currentTarget.reset()
-    } catch (error) { setNotice({ kind: 'error', text: error.message }) }
-    finally { setLoading(false) }
-  }
-
-  const loadSyncStatus = useCallback(async () => {
-    if (!session?.token) return
-    const response = await fetch(`${API}/sunat/padron/sincronizar/estado`, { headers: { Authorization: `Bearer ${session.token}` } })
-    if (response.ok) setSyncStatus(await response.json())
-  }, [session?.token])
-
-  const synchronizeSunat = async () => {
-    setLoading(true); setNotice(null)
-    try {
-      const response = await fetch(`${API}/sunat/padron/sincronizar`, { method: 'POST', headers: { Authorization: `Bearer ${session.token}` } })
-      const data = await response.json().catch(() => ({})); if (!response.ok) throw new Error(data.message || 'No se pudo iniciar la sincronización.')
-      setNotice({ kind: 'success', text: 'Sincronización SUNAT iniciada. Puedes dejar esta pantalla abierta para observar el progreso.' }); await loadSyncStatus()
-    } catch (error) { setNotice({ kind: 'error', text: error.message }) }
-    finally { setLoading(false) }
-  }
-
   useEffect(() => {
     if (view !== 'admin' || !session?.token) return
-    loadSyncStatus(); const timer = setInterval(loadSyncStatus, 5000); return () => clearInterval(timer)
-  }, [view, session?.token, loadSyncStatus])
+    call('/admin/usuarios', { headers: { Authorization: `Bearer ${session.token}` } }).then(setStaff).catch(error => setNotice({kind:'error',text:error.message}))
+  }, [view, session?.token])
+
+  const createStaff = async (event) => {
+    event.preventDefault(); setLoading(true); setNotice(null)
+    try { const item=await call('/admin/usuarios',{method:'POST',headers:{Authorization:`Bearer ${session.token}`},body:JSON.stringify(Object.fromEntries(new FormData(event.currentTarget)))});setStaff(current=>[...current,item]);event.currentTarget.reset();setNotice({kind:'success',text:'Usuario municipal creado correctamente.'}) }
+    catch(error){setNotice({kind:'error',text:error.message})}finally{setLoading(false)}
+  }
+
+  const toggleStaff = async (user) => {
+    try { await call(`/admin/usuarios/${user.id}/estado`,{method:'PATCH',headers:{Authorization:`Bearer ${session.token}`},body:JSON.stringify({activo:!user.activo})});setStaff(current=>current.map(x=>x.id===user.id?{...x,activo:!x.activo}:x)) }
+    catch(error){setNotice({kind:'error',text:error.message})}
+  }
+
+  const updateProfile = async (event) => {
+    event.preventDefault();setLoading(true);setNotice(null)
+    try { const data=await call('/admin/perfil',{method:'PUT',headers:{Authorization:`Bearer ${session.token}`},body:JSON.stringify(Object.fromEntries(new FormData(event.currentTarget)))});sessionStorage.removeItem('mpct-session');setSession(null);setView('login');setNotice({kind:'success',text:data.message}) }
+    catch(error){setNotice({kind:'error',text:error.message})}finally{setLoading(false)}
+  }
 
   const submitTracking = async (event) => {
     event.preventDefault(); setLoading(true); setNotice(null)
@@ -113,7 +100,7 @@ function App() {
 
     {view === 'login' && <Page title="Accede a tu cuenta" subtitle="Ciudadanos y personal municipal.">{session ? <section className="panel compact result"><span className="status">{session.user.roles.join(', ')}</span><h2>Hola, {session.user.nombres}</h2><p>Tu sesión está activa y protegida con JWT.</p><button className="secondary" onClick={() => { sessionStorage.removeItem('mpct-session'); setSession(null) }}>Cerrar sesión</button></section> : <form className="form panel compact" onSubmit={submitLogin}><label>Correo electrónico<input name="email" type="email" required /></label><label>Contraseña<input name="password" type="password" required /></label><button className="primary" disabled={loading}>{loading ? 'Ingresando…' : 'Ingresar'}</button><button type="button" className="link">Crear una cuenta ciudadana</button></form>}</Page>}
 
-    {view === 'admin' && session?.user?.roles?.includes('ADMINISTRADOR') && <Page title="Panel administrativo" subtitle="Configuración y operación del sistema municipal."><div className="admin-grid"><aside className="panel admin-menu"><b>Administración</b><button className="active">Padrón SUNAT</button><button disabled>Solicitudes</button><button disabled>Usuarios y roles</button><button disabled>Inspecciones</button><button disabled>Cajas y tarifas</button><button onClick={() => { sessionStorage.removeItem('mpct-session'); setSession(null); setView('home') }}>Cerrar sesión</button></aside><section className="panel admin-content"><span className="eyebrow">Fuente oficial</span><h2>Sincronizar Padrón Reducido SUNAT</h2><p>El sistema descarga el ZIP oficial, procesa sus datos por streaming y conserva únicamente personas jurídicas con domicilio fiscal en la provincia de Trujillo.</p><div className="sync-card"><div><b>Estado: {syncStatus?.estado || 'Consultando…'}</b><span>{syncStatus?.mensaje || 'Aún no se ha ejecutado la sincronización.'}</span></div>{syncStatus && <div className="sync-metrics"><span><b>{Number(syncStatus.lineasLeidas || 0).toLocaleString('es-PE')}</b> líneas revisadas</span><span><b>{Number(syncStatus.registrosTrujillo || 0).toLocaleString('es-PE')}</b> RUC de Trujillo</span></div>}<button className="primary" onClick={synchronizeSunat} disabled={loading || ['DESCARGANDO','PROCESANDO'].includes(syncStatus?.estado)}>{['DESCARGANDO','PROCESANDO'].includes(syncStatus?.estado) ? 'Sincronizando…' : 'Sincronizar ahora'}</button></div><details className="manual-import"><summary>Importación manual de contingencia</summary><form className="form upload-form" onSubmit={importSunat}><label>Archivo oficial TXT<input name="archivo" type="file" accept=".txt,text/plain" required /></label><button className="secondary" disabled={loading}>Importar archivo</button></form>{importResult && <div className="import-result"><span>✓</span><div><b>Importación terminada</b><p>{importResult.registros} registro(s) procesados correctamente.</p></div></div>}</details></section></div></Page>}
+    {view === 'admin' && session?.user?.roles?.includes('ADMINISTRADOR') && <Page title="Panel administrativo" subtitle="Administra al personal y la seguridad de tu cuenta."><div className="admin-grid"><aside className="panel admin-menu"><b>Administración</b><button className={adminTab==='usuarios'?'active':''} onClick={()=>setAdminTab('usuarios')}>Usuarios y roles</button><button className={adminTab==='perfil'?'active':''} onClick={()=>setAdminTab('perfil')}>Mi cuenta</button><button disabled>Solicitudes</button><button disabled>Inspecciones</button><button disabled>Cajas y tarifas</button><button onClick={() => { sessionStorage.removeItem('mpct-session'); setSession(null); setView('home') }}>Cerrar sesión</button></aside><section className="panel admin-content">{adminTab==='usuarios'?<><span className="eyebrow">Personal municipal</span><h2>Usuarios y roles</h2><form className="form staff-form" onSubmit={createStaff}><div className="form-grid"><label>Nombres<input name="nombres" required /></label><label>Apellidos<input name="apellidos" required /></label><label>Correo institucional<input name="email" type="email" required /></label><label>Rol<select name="rol"><option value="CAJERO">Cajero</option><option value="INSPECTOR">Inspector</option></select></label><label className="full">Contraseña temporal<input name="password" type="password" minLength="10" required placeholder="Mínimo 10 caracteres" /></label></div><button className="primary" disabled={loading}>{loading?'Creando…':'Crear usuario'}</button></form><div className="staff-list">{staff.map(user=><article key={user.id}><div><b>{user.nombres} {user.apellidos}</b><span>{user.email}</span></div><span className="role-badge">{user.roles?.join(', ')}</span><button className={user.activo?'danger-link':'secondary'} onClick={()=>toggleStaff(user)}>{user.activo?'Desactivar':'Activar'}</button></article>)}</div></>:<><span className="eyebrow">Seguridad</span><h2>Mi cuenta de administrador</h2><form className="form" onSubmit={updateProfile}><div className="form-grid"><label>Nombres<input name="nombres" defaultValue={session.user.nombres} required /></label><label>Apellidos<input name="apellidos" defaultValue={session.user.apellidos||''} required /></label><label className="full">Nuevo correo<input name="email" type="email" defaultValue={session.user.email||''} required /></label><label>Contraseña actual<input name="passwordActual" type="password" required /></label><label>Nueva contraseña (opcional)<input name="passwordNueva" type="password" minLength="10" /></label></div><button className="primary" disabled={loading}>Guardar cambios</button></form></>}</section></div></Page>}
 
     <footer><div className="container"><div className="brand"><span className="crest">M</span><span>Portal de trámites<small>Licencias de funcionamiento</small></span></div><p>Servicio digital municipal · Atención segura y transparente</p><div><button>Privacidad</button><button>Accesibilidad</button><button>Ayuda</button></div></div></footer>
   </div>

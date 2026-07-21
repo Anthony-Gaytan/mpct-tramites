@@ -20,6 +20,6 @@ public sealed class AuthController(UserManager<Usuario> users, TokenService toke
     public async Task<IActionResult> Login(LoginRequest request)
     {
         var user = await users.FindByEmailAsync(request.Email); if (user is null || !user.Activo || !await users.CheckPasswordAsync(user, request.Password)) return Unauthorized(new { message = "Credenciales inválidas." });
-        var roles = await users.GetRolesAsync(user); return Ok(new { token = tokens.Create(user, roles), user = new { user.Nombres, user.Apellidos, roles } });
+        var roles = await users.GetRolesAsync(user); return Ok(new { token = tokens.Create(user, roles), user = new { user.Nombres, user.Apellidos, user.Email, roles } });
     }
 }
