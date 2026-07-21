@@ -54,6 +54,7 @@ public sealed class AdminController(AppDbContext db, UserManager<Usuario> users)
  [HttpPatch("usuarios/{id:guid}/password")]
  public async Task<IActionResult> ResetPassword(Guid id,RestablecerPasswordRequest request)
  {
+   if(string.IsNullOrWhiteSpace(request.PasswordNueva)||request.PasswordNueva.Length<10)return BadRequest(new{message="La nueva contraseña debe tener al menos 10 caracteres, mayúscula, número y símbolo."});
    var user=await users.FindByIdAsync(id.ToString());if(user is null)return NotFound();
    var roles=await users.GetRolesAsync(user);if(!roles.Any(x=>x is "CAJERO" or "INSPECTOR"))return BadRequest(new{message="Solo se puede restablecer la contraseña del personal municipal."});
    var token=await users.GeneratePasswordResetTokenAsync(user);var result=await users.ResetPasswordAsync(user,token,request.PasswordNueva);
