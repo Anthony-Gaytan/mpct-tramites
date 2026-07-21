@@ -41,6 +41,7 @@ function App() {
   const [adminTab, setAdminTab] = useState("usuarios");
   const [staff, setStaff] = useState([]);
   const [requestPhase, setRequestPhase] = useState("");
+  const [businessType, setBusinessType] = useState("");
   const portalNotify = useCallback(
     (text, kind = "error") => setNotice({ text, kind }),
     [],
@@ -240,13 +241,6 @@ function App() {
         kind: "error",
         text: "Valida un RUC apto antes de continuar.",
       });
-    if (!session?.token) {
-      setView("login");
-      return setNotice({
-        kind: "error",
-        text: "Ingresa o crea una cuenta ciudadana para registrar la solicitud.",
-      });
-    }
     setLoading(true);
     setRequestPhase("Registrando solicitud…");
     setNotice(null);
@@ -255,10 +249,12 @@ function App() {
       const archivo = formData.get("archivo");
       const values = Object.fromEntries(formData);
       delete values.archivo;
+      if (values.rubro === "Otro") values.rubro = values.rubroOtro?.trim();
+      delete values.rubroOtro;
       values.actividad = values.rubro;
       const result = await call("/solicitudes", {
         method: "POST",
-        headers: { Authorization: `Bearer ${session.token}` },
+        headers: session?.token ? { Authorization: `Bearer ${session.token}` } : {},
         body: JSON.stringify({
           ...values,
           tipo: Number(values.tipo),
@@ -271,10 +267,10 @@ function App() {
         upload.append("archivo", archivo);
         upload.append("tipo", "PLANO_DISTRIBUCION_RIESGOS");
         const response = await fetch(
-          `${API}/solicitudes/${result.id}/documentos`,
+          `${API}/solicitudes/${result.id}/documentos?codigo=${encodeURIComponent(result.codigoSeguimiento)}`,
           {
             method: "POST",
-            headers: { Authorization: `Bearer ${session.token}` },
+            headers: session?.token ? { Authorization: `Bearer ${session.token}` } : {},
             body: upload,
           },
         );
@@ -290,7 +286,7 @@ function App() {
         kind: "success",
         text: `Solicitud ${result.numeroExpediente} registrada. Guarda tu código: ${result.codigoSeguimiento}`,
       });
-      setView("citizen");
+      setView(session?.user?.roles?.includes("CIUDADANO") ? "citizen" : "track");
     } catch (error) {
       setNotice({ kind: "error", text: error.message });
     } finally {
@@ -634,7 +630,7 @@ function App() {
                   </label>
                   <label>
                     Rubro del negocio
-                    <select name="rubro" required>
+                    <select name="rubro" required value={businessType} onChange={(event)=>setBusinessType(event.target.value)}>
                       <option value="">Selecciona un rubro</option>
                       <option>Restaurante / Fuente de Soda</option>
                       <option>Bodega / Minimarket</option>
@@ -645,6 +641,7 @@ function App() {
                       <option>Otro</option>
                     </select>
                   </label>
+                  {businessType === "Otro" && <label>Especifica el rubro<input name="rubroOtro" required placeholder="Escribe la actividad del negocio" /></label>}
                   <label>
                     Área del local (m²)
                     <input
