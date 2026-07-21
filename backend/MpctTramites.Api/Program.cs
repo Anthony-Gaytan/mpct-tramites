@@ -17,7 +17,7 @@ builder.Services.AddDbContext<AppDbContext>(o=>o.UseNpgsql(databaseConnection));
 builder.Services.AddIdentityCore<Usuario>(o=>{o.Password.RequiredLength=10;o.Password.RequireDigit=true;o.Password.RequireUppercase=true;o.Password.RequireNonAlphanumeric=true;o.Lockout.MaxFailedAccessAttempts=5;}).AddRoles<Rol>().AddEntityFrameworkStores<AppDbContext>().AddSignInManager();
 var jwtKey=builder.Configuration["Jwt:Key"]??throw new InvalidOperationException("Configure Jwt:Key (mínimo 32 caracteres).");
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(o=>o.TokenValidationParameters=new TokenValidationParameters{ValidateIssuer=true,ValidateAudience=true,ValidateLifetime=true,ValidateIssuerSigningKey=true,ValidIssuer=builder.Configuration["Jwt:Issuer"],ValidAudience=builder.Configuration["Jwt:Audience"],IssuerSigningKey=new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),ClockSkew=TimeSpan.FromMinutes(1)});
-builder.Services.AddAuthorization(); builder.Services.AddScoped<TokenService>(); builder.Services.AddScoped<SunatService>(); builder.Services.AddSingleton<SunatSyncQueue>(); builder.Services.AddSingleton<SunatSyncState>(); builder.Services.AddHostedService<SunatSyncWorker>(); builder.Services.AddHttpClient(); builder.Services.AddHttpClient("sunat-download", c=>c.Timeout=TimeSpan.FromMinutes(20)); builder.Services.AddControllers(); builder.Services.AddHealthChecks().AddDbContextCheck<AppDbContext>();
+builder.Services.AddAuthorization(); builder.Services.AddScoped<TokenService>(); builder.Services.AddScoped<SunatService>(); builder.Services.AddSingleton<SunatSyncQueue>(); builder.Services.AddSingleton<SunatSyncState>(); builder.Services.AddHostedService<SunatSyncWorker>(); builder.Services.AddHttpClient(); builder.Services.AddHttpClient("sunat-download", c=>c.Timeout=TimeSpan.FromMinutes(20)); builder.Services.AddHttpClient("json-pe",c=>{c.BaseAddress=new Uri("https://api.json.pe/");c.Timeout=TimeSpan.FromSeconds(20);}); builder.Services.AddControllers(); builder.Services.AddHealthChecks().AddDbContextCheck<AppDbContext>();
 builder.Services.AddCors(o=>o.AddPolicy("frontend",p=>p.WithOrigins(builder.Configuration.GetSection("Cors:Origins").Get<string[]>()??[]).AllowAnyHeader().AllowAnyMethod()));
 builder.Services.AddRateLimiter(o=>{o.RejectionStatusCode=429;o.AddPolicy("sensitive",ctx=>RateLimitPartition.GetFixedWindowLimiter(ctx.Connection.RemoteIpAddress?.ToString()??"unknown",_=>new FixedWindowRateLimiterOptions{PermitLimit=10,Window=TimeSpan.FromMinutes(1),QueueLimit=0}));});
 builder.Services.AddEndpointsApiExplorer();builder.Services.AddSwaggerGen(o=>{o.AddSecurityDefinition("Bearer",new OpenApiSecurityScheme{Type=SecuritySchemeType.Http,Scheme="bearer",BearerFormat="JWT"});});
@@ -25,7 +25,7 @@ var app=builder.Build();if(app.Environment.IsDevelopment()){app.UseSwagger();app
 if(app.Configuration.GetValue("Database:MigrateOnStartup",false)){using var scope=app.Services.CreateScope();await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();}
 await SeedService.SeedAsync(app.Services,app.Configuration);
 
-if (app.Configuration.GetValue("Sunat:AutoSync", true))
+if (app.Configuration.GetValue("Sunat:AutoSync", false))
 {
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();

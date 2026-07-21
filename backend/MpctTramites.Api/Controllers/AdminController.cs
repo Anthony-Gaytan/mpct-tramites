@@ -18,7 +18,7 @@ public sealed class AdminController(AppDbContext db, UserManager<Usuario> users)
  {
    var staff=await users.Users.Where(x=>!x.UserName!.Contains("@") || x.Email!=null).OrderBy(x=>x.Nombres).ToListAsync(ct);
    var result=new List<object>();
-   foreach(var user in staff){var roles=await users.GetRolesAsync(user);if(roles.Any(x=>x is "ADMINISTRADOR" or "CAJERO" or "INSPECTOR"))result.Add(new{user.Id,user.Nombres,user.Apellidos,user.Email,user.Activo,roles,user.CreadoEn});}
+   foreach(var user in staff){var roles=await users.GetRolesAsync(user);if(roles.Any(x=>x is "ADMINISTRADOR" or "CAJERO" or "INSPECTOR"))result.Add(new{user.Id,user.Nombres,user.Apellidos,user.Email,user.Activo,user.MotivoSuspension,user.SuspendidoEn,roles,user.CreadoEn});}
    return Ok(result);
  }
 
@@ -39,7 +39,18 @@ public sealed class AdminController(AppDbContext db, UserManager<Usuario> users)
  {
    var user=await users.FindByIdAsync(id.ToString());if(user is null)return NotFound();
    if(User.FindFirstValue(ClaimTypes.NameIdentifier)==id.ToString()&&!request.Activo)return BadRequest(new{message="No puedes desactivar tu propia cuenta."});
-   user.Activo=request.Activo;var result=await users.UpdateAsync(user);return result.Succeeded?Ok(new{user.Id,user.Activo}):BadRequest(result.Errors);
+   if(!request.Activo&&string.IsNullOrWhiteSpace(request.Motivo))return BadRequest(new{message="Indica el motivo de la suspensión."});
+   user.Activo=request.Activo;user.MotivoSuspension=request.Activo?null:request.Motivo!.Trim();user.SuspendidoEn=request.Activo?null:DateTimeOffset.UtcNow;user.SuspendidoPorId=request.Activo?null:Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+   var result=await users.UpdateAsync(user);return result.Succeeded?Ok(new{user.Id,user.Activo,user.MotivoSuspension,user.SuspendidoEn}):BadRequest(result.Errors);
+ }
+
+ [HttpPatch("usuarios/{id:guid}/password")]
+ public async Task<IActionResult> ResetPassword(Guid id,RestablecerPasswordRequest request)
+ {
+   var user=await users.FindByIdAsync(id.ToString());if(user is null)return NotFound();
+   var roles=await users.GetRolesAsync(user);if(!roles.Any(x=>x is "CAJERO" or "INSPECTOR"))return BadRequest(new{message="Solo se puede restablecer la contraseña del personal municipal."});
+   var token=await users.GeneratePasswordResetTokenAsync(user);var result=await users.ResetPasswordAsync(user,token,request.PasswordNueva);
+   return result.Succeeded?Ok(new{message="Contraseña restablecida correctamente."}):BadRequest(new{message=string.Join(" ",result.Errors.Select(x=>x.Description))});
  }
 
  [HttpPut("perfil")]

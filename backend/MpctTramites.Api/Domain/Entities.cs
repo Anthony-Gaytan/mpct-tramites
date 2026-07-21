@@ -12,6 +12,9 @@ public sealed class Usuario : IdentityUser<Guid>
     public string Nombres { get; set; } = string.Empty;
     public string Apellidos { get; set; } = string.Empty;
     public bool Activo { get; set; } = true;
+    public string? MotivoSuspension { get; set; }
+    public DateTimeOffset? SuspendidoEn { get; set; }
+    public Guid? SuspendidoPorId { get; set; }
     public DateTimeOffset CreadoEn { get; set; } = DateTimeOffset.UtcNow;
 }
 
