@@ -4,7 +4,7 @@ using MpctTramites.Api.Data;
 using MpctTramites.Api.Domain;
 
 namespace MpctTramites.Api.Services;
-public sealed class SunatService(AppDbContext db)
+public sealed class SunatService(AppDbContext db, SunatSyncState syncState)
 {
     public static string? ValidateRucFormat(string ruc) =>
         ruc.Length != 11 || !ruc.All(char.IsDigit) ? "El RUC debe tener exactamente 11 dígitos." :
@@ -14,7 +14,13 @@ public sealed class SunatService(AppDbContext db)
     {
         string? error = ValidateRucFormat(ruc);
         var row = error is null ? await db.PadronSunat.AsNoTracking().SingleOrDefaultAsync(x => x.Ruc == ruc, ct) : null;
-        if (error is null && row is null) error = "RUC no encontrado en el padrón SUNAT importado.";
+        if (error is null && row is null)
+        {
+            var sync = syncState.Get();
+            error = sync.Estado is "DESCARGANDO" or "PROCESANDO"
+                ? "El padrón SUNAT se está actualizando automáticamente. Intenta nuevamente en unos minutos."
+                : "RUC no encontrado en el padrón SUNAT actualizado.";
+        }
         if (row is not null && !row.Estado.Equals("ACTIVO", StringComparison.OrdinalIgnoreCase)) error = "El RUC no se encuentra ACTIVO.";
         if (row is not null && !row.Condicion.Equals("HABIDO", StringComparison.OrdinalIgnoreCase)) error = "El domicilio fiscal no tiene condición HABIDO.";
         if (row is not null && !(row.Ubigeo.StartsWith("1301") || row.Direccion.Contains("TRUJILLO", StringComparison.OrdinalIgnoreCase))) error = "El domicilio fiscal debe ubicarse en la provincia de Trujillo, La Libertad.";

@@ -22,7 +22,23 @@ builder.Services.AddCors(o=>o.AddPolicy("frontend",p=>p.WithOrigins(builder.Conf
 builder.Services.AddRateLimiter(o=>{o.RejectionStatusCode=429;o.AddPolicy("sensitive",ctx=>RateLimitPartition.GetFixedWindowLimiter(ctx.Connection.RemoteIpAddress?.ToString()??"unknown",_=>new FixedWindowRateLimiterOptions{PermitLimit=10,Window=TimeSpan.FromMinutes(1),QueueLimit=0}));});
 builder.Services.AddEndpointsApiExplorer();builder.Services.AddSwaggerGen(o=>{o.AddSecurityDefinition("Bearer",new OpenApiSecurityScheme{Type=SecuritySchemeType.Http,Scheme="bearer",BearerFormat="JWT"});});
 var app=builder.Build();if(app.Environment.IsDevelopment()){app.UseSwagger();app.UseSwaggerUI();}app.UseExceptionHandler("/error");app.UseHttpsRedirection();app.UseDefaultFiles();app.UseStaticFiles();app.UseCors("frontend");app.UseRateLimiter();app.UseAuthentication();app.UseAuthorization();app.MapControllers();app.MapHealthChecks("/health");app.Map("/error",()=>Results.Problem("Ocurrió un error inesperado."));app.MapFallbackToFile("index.html");
-if(app.Configuration.GetValue("Database:MigrateOnStartup",false)){using var scope=app.Services.CreateScope();await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();}await SeedService.SeedAsync(app.Services,app.Configuration);app.Run();
+if(app.Configuration.GetValue("Database:MigrateOnStartup",false)){using var scope=app.Services.CreateScope();await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();}
+await SeedService.SeedAsync(app.Services,app.Configuration);
+
+if (app.Configuration.GetValue("Sunat:AutoSync", true))
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var lastImport = await db.PadronSunat.MaxAsync(x => (DateTimeOffset?)x.ImportadoEn);
+    var maxAgeDays = Math.Max(1, app.Configuration.GetValue("Sunat:MaxAgeDays", 7));
+    if (lastImport is null || lastImport < DateTimeOffset.UtcNow.AddDays(-maxAgeDays))
+    {
+        app.Services.GetRequiredService<SunatSyncQueue>().TryQueue();
+        app.Logger.LogInformation("Sincronización automática SUNAT encolada. Última importación: {LastImport}", lastImport);
+    }
+}
+
+app.Run();
 static string NormalizePostgresConnection(string value)
 {
     if (!value.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) && !value.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase)) return value;
