@@ -19,6 +19,7 @@ function App() {
   const [sunat, setSunat] = useState(null)
   const [loading, setLoading] = useState(false)
   const [session, setSession] = useState(() => JSON.parse(sessionStorage.getItem('mpct-session') || 'null'))
+  const [importResult, setImportResult] = useState(null)
 
   const submitLogin = async (event) => {
     event.preventDefault(); setLoading(true); setNotice(null)
@@ -27,6 +28,20 @@ function App() {
       const data = await call('/auth/login', { method: 'POST', body: JSON.stringify(Object.fromEntries(form)) })
       sessionStorage.setItem('mpct-session', JSON.stringify(data)); setSession(data)
       setNotice({ kind: 'success', text: `Bienvenido, ${data.user.nombres}. Rol: ${data.user.roles.join(', ')}` })
+    } catch (error) { setNotice({ kind: 'error', text: error.message }) }
+    finally { setLoading(false) }
+  }
+
+  const importSunat = async (event) => {
+    event.preventDefault(); setLoading(true); setNotice(null); setImportResult(null)
+    const form = new FormData(event.currentTarget)
+    const file = form.get('archivo')
+    if (!file?.size) { setNotice({ kind: 'error', text: 'Selecciona un archivo TXT del Padrón Reducido SUNAT.' }); setLoading(false); return }
+    try {
+      const response = await fetch(`${API}/sunat/padron/importar`, { method: 'POST', headers: { Authorization: `Bearer ${session.token}` }, body: form })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(data.message || data.title || 'No se pudo importar el padrón.')
+      setImportResult(data); setNotice({ kind: 'success', text: `Importación completada: ${data.registros} registro(s).` }); event.currentTarget.reset()
     } catch (error) { setNotice({ kind: 'error', text: error.message }) }
     finally { setLoading(false) }
   }
@@ -51,7 +66,7 @@ function App() {
   return <div className="app">
     <header className="topbar"><div className="container nav">
       <button className="brand" onClick={() => setView('home')} aria-label="Ir al inicio"><span className="crest">M</span><span>Municipalidad Provincial<small>Trámites digitales</small></span></button>
-      <nav aria-label="Navegación principal"><button onClick={() => setView('info')}>Información</button><button onClick={() => setView('track')}>Consulta tu trámite</button><button className="outline" onClick={() => setView('login')}>{session ? session.user.nombres : 'Ingresar'}</button></nav>
+      <nav aria-label="Navegación principal"><button onClick={() => setView('info')}>Información</button><button onClick={() => setView('track')}>Consulta tu trámite</button><button className="outline" onClick={() => setView(session?.user?.roles?.includes('ADMINISTRADOR') ? 'admin' : 'login')}>{session ? session.user.nombres : 'Ingresar'}</button></nav>
     </div></header>
 
     {notice && <div className={`notice ${notice.kind}`} role="alert">{notice.text}<button onClick={() => setNotice(null)}>×</button></div>}
@@ -75,6 +90,8 @@ function App() {
     {view === 'apply' && <Page title="Nueva solicitud" subtitle="Primero validaremos los datos oficiales de tu empresa."><form className="form panel wide" onSubmit={(e) => { e.preventDefault(); if (!sunat) setNotice({kind:'error', text:'Valida un RUC apto antes de continuar.'}); else setNotice({kind:'success', text:'RUC validado. Para guardar el expediente, ingresa o crea una cuenta.'}) }}><div className="form-grid"><label>RUC de persona jurídica<input name="ruc" inputMode="numeric" onChange={validateRuc} required placeholder="20XXXXXXXXX" /></label><label>Tipo de solicitud<select name="tipo"><option>Nueva licencia</option><option>Renovación</option><option>Modificación</option></select></label></div>{sunat && <div className="sunat"><span>✓ Datos validados con SUNAT</span><div><label>Razón social<input readOnly value={sunat.razonSocial} /></label><label>Estado y condición<input readOnly value={`${sunat.estado} · ${sunat.condicion}`} /></label><label className="full">Domicilio fiscal<input readOnly value={sunat.direccion} /></label></div></div>}<button className="primary" disabled={loading}>{loading ? 'Validando…' : 'Continuar'}</button></form></Page>}
 
     {view === 'login' && <Page title="Accede a tu cuenta" subtitle="Ciudadanos y personal municipal.">{session ? <section className="panel compact result"><span className="status">{session.user.roles.join(', ')}</span><h2>Hola, {session.user.nombres}</h2><p>Tu sesión está activa y protegida con JWT.</p><button className="secondary" onClick={() => { sessionStorage.removeItem('mpct-session'); setSession(null) }}>Cerrar sesión</button></section> : <form className="form panel compact" onSubmit={submitLogin}><label>Correo electrónico<input name="email" type="email" required /></label><label>Contraseña<input name="password" type="password" required /></label><button className="primary" disabled={loading}>{loading ? 'Ingresando…' : 'Ingresar'}</button><button type="button" className="link">Crear una cuenta ciudadana</button></form>}</Page>}
+
+    {view === 'admin' && session?.user?.roles?.includes('ADMINISTRADOR') && <Page title="Panel administrativo" subtitle="Configuración y operación del sistema municipal."><div className="admin-grid"><aside className="panel admin-menu"><b>Administración</b><button className="active">Padrón SUNAT</button><button disabled>Solicitudes</button><button disabled>Usuarios y roles</button><button disabled>Inspecciones</button><button disabled>Cajas y tarifas</button><button onClick={() => { sessionStorage.removeItem('mpct-session'); setSession(null); setView('home') }}>Cerrar sesión</button></aside><section className="panel admin-content"><span className="eyebrow">Fuente oficial</span><h2>Importar Padrón Reducido SUNAT</h2><p>Selecciona un archivo TXT delimitado por <code>|</code>. La importación actualiza razón social, estado, condición, ubigeo y domicilio fiscal.</p><div className="warning-box"><b>Importante</b><span>Para Render gratuito usa un archivo filtrado de Trujillo. No subas directamente el ZIP nacional de 389 MB.</span></div><form className="form upload-form" onSubmit={importSunat}><label>Archivo oficial TXT<input name="archivo" type="file" accept=".txt,text/plain" required /></label><button className="primary" disabled={loading}>{loading ? 'Importando… no cierres esta página' : 'Importar padrón'}</button></form>{importResult && <div className="import-result"><span>✓</span><div><b>Importación terminada</b><p>{importResult.registros} registro(s) procesados correctamente.</p></div></div>}</section></div></Page>}
 
     <footer><div className="container"><div className="brand"><span className="crest">M</span><span>Portal de trámites<small>Licencias de funcionamiento</small></span></div><p>Servicio digital municipal · Atención segura y transparente</p><div><button>Privacidad</button><button>Accesibilidad</button><button>Ayuda</button></div></div></footer>
   </div>
