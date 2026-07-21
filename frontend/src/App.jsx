@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import "./App.css";
+import { CashierPortal, CitizenPortal, InspectorPortal } from "./RolePortals";
 
 const API = import.meta.env.VITE_API_URL || "/api";
 const steps = [
@@ -39,6 +40,7 @@ function App() {
   );
   const [adminTab, setAdminTab] = useState("usuarios");
   const [staff, setStaff] = useState([]);
+  const portalNotify = useCallback((text, kind = "error") => setNotice({ text, kind }), []);
 
   const submitLogin = async (event) => {
     event.preventDefault();
@@ -52,9 +54,44 @@ function App() {
       });
       sessionStorage.setItem("mpct-session", JSON.stringify(data));
       setSession(data);
+      const role = data.user.roles[0];
+      setView(
+        role === "ADMINISTRADOR"
+          ? "admin"
+          : role === "CAJERO"
+            ? "cashier"
+            : role === "INSPECTOR"
+              ? "inspector"
+              : "citizen",
+      );
       setNotice({
         kind: "success",
         text: `Bienvenido, ${data.user.nombres}. Rol: ${data.user.roles.join(", ")}`,
+      });
+    } catch (error) {
+      setNotice({ kind: "error", text: error.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const submitRegister = async (event) => {
+    event.preventDefault();
+    setLoading(true);
+    setNotice(null);
+    try {
+      const data = await call("/auth/registro", {
+        method: "POST",
+        body: JSON.stringify(
+          Object.fromEntries(new FormData(event.currentTarget)),
+        ),
+      });
+      sessionStorage.setItem("mpct-session", JSON.stringify(data));
+      setSession(data);
+      setView("citizen");
+      setNotice({
+        kind: "success",
+        text: "Cuenta ciudadana creada correctamente.",
       });
     } catch (error) {
       setNotice({ kind: "error", text: error.message });
@@ -192,6 +229,45 @@ function App() {
     }
   };
 
+  const submitRequest = async (event) => {
+    event.preventDefault();
+    if (!sunat)
+      return setNotice({
+        kind: "error",
+        text: "Valida un RUC apto antes de continuar.",
+      });
+    if (!session?.token) {
+      setView("login");
+      return setNotice({
+        kind: "error",
+        text: "Ingresa o crea una cuenta ciudadana para registrar la solicitud.",
+      });
+    }
+    setLoading(true);
+    setNotice(null);
+    try {
+      const values = Object.fromEntries(new FormData(event.currentTarget));
+      const result = await call("/solicitudes", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.token}` },
+        body: JSON.stringify({
+          ...values,
+          tipo: Number(values.tipo),
+          areaMetrosCuadrados: Number(values.areaMetrosCuadrados),
+        }),
+      });
+      setNotice({
+        kind: "success",
+        text: `Solicitud ${result.numeroExpediente} registrada. Guarda tu código: ${result.codigoSeguimiento}`,
+      });
+      setView("citizen");
+    } catch (error) {
+      setNotice({ kind: "error", text: error.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="app">
       <header className="topbar">
@@ -217,7 +293,13 @@ function App() {
                 setView(
                   session?.user?.roles?.includes("ADMINISTRADOR")
                     ? "admin"
-                    : "login",
+                    : session?.user?.roles?.includes("CAJERO")
+                      ? "cashier"
+                      : session?.user?.roles?.includes("INSPECTOR")
+                        ? "inspector"
+                        : session
+                          ? "citizen"
+                          : "login",
                 )
               }
             >
@@ -444,22 +526,7 @@ function App() {
           title="Nueva solicitud"
           subtitle="Primero validaremos los datos oficiales de tu empresa."
         >
-          <form
-            className="form panel wide"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!sunat)
-                setNotice({
-                  kind: "error",
-                  text: "Valida un RUC apto antes de continuar.",
-                });
-              else
-                setNotice({
-                  kind: "success",
-                  text: "RUC validado. Para guardar el expediente, ingresa o crea una cuenta.",
-                });
-            }}
-          >
+          <form className="form panel wide" onSubmit={submitRequest}>
             <div className="form-grid">
               <label>
                 RUC de persona jurídica
@@ -474,9 +541,9 @@ function App() {
               <label>
                 Tipo de solicitud
                 <select name="tipo">
-                  <option>Nueva licencia</option>
-                  <option>Renovación</option>
-                  <option>Modificación</option>
+                  <option value="0">Nueva licencia</option>
+                  <option value="1">Renovación</option>
+                  <option value="2">Modificación</option>
                 </select>
               </label>
             </div>
@@ -500,6 +567,48 @@ function App() {
                     <input readOnly value={sunat.direccion} />
                   </label>
                 </div>
+              </div>
+            )}
+            {sunat && (
+              <div className="form-grid request-details">
+                <label>
+                  Representante legal
+                  <input name="representanteNombre" required />
+                </label>
+                <label>
+                  DNI del representante
+                  <input
+                    name="representanteDocumento"
+                    pattern="[0-9]{8}"
+                    required
+                  />
+                </label>
+                <label>
+                  Correo de contacto
+                  <input name="representanteEmail" type="email" required />
+                </label>
+                <label>
+                  Rubro
+                  <input name="rubro" required />
+                </label>
+                <label>
+                  Actividad económica
+                  <input name="actividad" required />
+                </label>
+                <label>
+                  Área del local (m²)
+                  <input
+                    name="areaMetrosCuadrados"
+                    type="number"
+                    min="1"
+                    step="0.01"
+                    required
+                  />
+                </label>
+                <label className="full">
+                  Dirección del local
+                  <input name="direccionLocal" required />
+                </label>
               </div>
             )}
             <button className="primary" disabled={loading}>
@@ -542,12 +651,71 @@ function App() {
               <button className="primary" disabled={loading}>
                 {loading ? "Ingresando…" : "Ingresar"}
               </button>
-              <button type="button" className="link">
+              <button
+                type="button"
+                className="link"
+                onClick={() => setView("register")}
+              >
                 Crear una cuenta ciudadana
               </button>
             </form>
           )}
         </Page>
+      )}
+
+      {view === "register" && (
+        <Page
+          title="Crea tu cuenta"
+          subtitle="Regístrate para presentar y consultar solicitudes."
+        >
+          <form className="form panel compact" onSubmit={submitRegister}>
+            <label>
+              Nombres
+              <input name="nombres" required />
+            </label>
+            <label>
+              Apellidos
+              <input name="apellidos" required />
+            </label>
+            <label>
+              Correo electrónico
+              <input name="email" type="email" required />
+            </label>
+            <label>
+              Contraseña
+              <input
+                name="password"
+                type="password"
+                minLength="10"
+                required
+                placeholder="Incluye mayúscula, número y símbolo"
+              />
+            </label>
+            <button className="primary" disabled={loading}>
+              {loading ? "Creando…" : "Crear cuenta"}
+            </button>
+          </form>
+        </Page>
+      )}
+
+      {view === "citizen" && session?.user?.roles?.includes("CIUDADANO") && (
+        <CitizenPortal
+          session={session}
+          onNew={() => setView("apply")}
+          notify={portalNotify}
+        />
+      )}
+      {view === "cashier" && session?.user?.roles?.includes("CAJERO") && (
+        <CashierPortal
+          session={session}
+          notify={portalNotify}
+        />
+      )}
+      {view === "inspector" && session?.user?.roles?.includes("INSPECTOR") && (
+        <InspectorPortal
+          session={session}
+          notify={portalNotify}
+        />
       )}
 
       {view === "admin" && session?.user?.roles?.includes("ADMINISTRADOR") && (
@@ -646,7 +814,9 @@ function App() {
                             </button>
                           )}
                           <button
-                            className={user.activo ? "danger-link" : "secondary"}
+                            className={
+                              user.activo ? "danger-link" : "secondary"
+                            }
                             onClick={() => toggleStaff(user)}
                           >
                             {user.activo ? "Desactivar" : "Activar"}
