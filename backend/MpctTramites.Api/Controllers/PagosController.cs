@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -22,11 +23,12 @@ public sealed class PagosController(AppDbContext db, IHttpClientFactory clients,
         var folder=Path.Combine(env.ContentRootPath,"storage","vouchers");Directory.CreateDirectory(folder);var name=$"{Guid.NewGuid():N}{Path.GetExtension(archivo.FileName).ToLowerInvariant()}";var path=Path.Combine(folder,name);await using(var stream=System.IO.File.Create(path))await archivo.CopyToAsync(stream,ct);
         var pago=new Pago{SolicitudId=solicitudId,Medio=medio,Monto=solicitud.Tarifa,VoucherNombre=Path.GetFileName(archivo.FileName),VoucherRuta=path};db.Pagos.Add(pago);solicitud.Historial.Add(new HistorialEstado{Estado=solicitud.Estado,Comentario="Voucher enviado para revisión"});await db.SaveChangesAsync(ct);return Ok(new{pago.Id,pago.Estado,pago.Monto,message="Voucher enviado para revisión."});
     }
-    [Authorize, HttpPost("mercadopago/preferencia/{solicitudId:guid}")]
-    public async Task<IActionResult> CreatePreference(Guid solicitudId, CancellationToken ct)
+    [HttpPost("mercadopago/preferencia/{solicitudId:guid}")]
+    public async Task<IActionResult> CreatePreference(Guid solicitudId, [FromQuery]string? codigo, CancellationToken ct)
     {
         var solicitud = await db.Solicitudes.AsNoTracking().SingleOrDefaultAsync(x => x.Id == solicitudId, ct);
         if (solicitud is null) return NotFound();
+        var authenticated=Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier),out var uid)&&(solicitud.CiudadanoId==uid||User.IsInRole("ADMINISTRADOR"));var expected=string.IsNullOrWhiteSpace(codigo)?null:Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(codigo.Trim().ToUpperInvariant())));if(!authenticated&&solicitud.CodigoSeguimientoHash!=expected)return Unauthorized(new{message="La autorización de pago no es válida."});
         if (await db.Pagos.AnyAsync(x => x.SolicitudId == solicitudId && x.Estado == EstadoPago.Aprobado, ct)) return Conflict(new { message = "La solicitud ya está pagada." });
         var token = config["MercadoPago:AccessToken"]; if (string.IsNullOrWhiteSpace(token)) return Problem("Mercado Pago no está configurado.", statusCode: 503);
         var pago = new Pago { SolicitudId = solicitudId, Medio = MedioPago.MercadoPago, Monto = solicitud.Tarifa }; db.Pagos.Add(pago); await db.SaveChangesAsync(ct);

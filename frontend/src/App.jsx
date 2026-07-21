@@ -274,9 +274,8 @@ function App() {
         setRequestPhase("Subiendo documentos…");
         const upload = new FormData();
         upload.append("archivo", archivo);
-        upload.append("tipo", "PLANO_DISTRIBUCION_RIESGOS");
         const response = await fetch(
-          `${API}/solicitudes/${result.id}/documentos?codigo=${encodeURIComponent(result.uploadToken)}`,
+          `${API}/solicitudes/${result.id}/documentos?codigo=${encodeURIComponent(result.uploadToken)}&tipo=PLANO_DISTRIBUCION_RIESGOS`,
           {
             method: "POST",
             headers: session?.token
@@ -331,6 +330,12 @@ function App() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const payWithMercadoPago = async () => {
+    setLoading(true);setNotice(null);
+    try { const data=await call(`/pagos/mercadopago/preferencia/${pendingRequest.id}?codigo=${encodeURIComponent(pendingRequest.uploadToken)}`,{method:"POST",headers:session?.token?{Authorization:`Bearer ${session.token}`}:{}});window.location.assign(data.checkoutUrl); }
+    catch(error){setNotice({kind:"error",text:error.message})}finally{setLoading(false)}
   };
 
   return (
@@ -738,9 +743,10 @@ function App() {
               <span>Derecho de trámite</span>
               <strong>S/ {Number(pendingRequest.tarifa).toFixed(2)}</strong>
             </div>
+            <button className="primary gateway-button" onClick={payWithMercadoPago} disabled={loading}>{loading?"Conectando…":"Pagar ahora con Mercado Pago"}</button>
+            <div className="payment-divider"><span>o adjunta un comprobante</span></div>
             <p>
-              Realiza el pago mediante Yape, transferencia o tarjeta y adjunta
-              el comprobante para revisión.
+              Si pagaste mediante Yape, transferencia o tarjeta, adjunta el comprobante para revisión.
             </p>
             <form className="form" onSubmit={submitVoucher}>
               <label>
