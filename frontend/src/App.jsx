@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import './App.css'
 
 const API = import.meta.env.VITE_API_URL || '/api'
@@ -20,6 +20,7 @@ function App() {
   const [loading, setLoading] = useState(false)
   const [session, setSession] = useState(() => JSON.parse(sessionStorage.getItem('mpct-session') || 'null'))
   const [importResult, setImportResult] = useState(null)
+  const [syncStatus, setSyncStatus] = useState(null)
 
   const submitLogin = async (event) => {
     event.preventDefault(); setLoading(true); setNotice(null)
@@ -45,6 +46,27 @@ function App() {
     } catch (error) { setNotice({ kind: 'error', text: error.message }) }
     finally { setLoading(false) }
   }
+
+  const loadSyncStatus = useCallback(async () => {
+    if (!session?.token) return
+    const response = await fetch(`${API}/sunat/padron/sincronizar/estado`, { headers: { Authorization: `Bearer ${session.token}` } })
+    if (response.ok) setSyncStatus(await response.json())
+  }, [session?.token])
+
+  const synchronizeSunat = async () => {
+    setLoading(true); setNotice(null)
+    try {
+      const response = await fetch(`${API}/sunat/padron/sincronizar`, { method: 'POST', headers: { Authorization: `Bearer ${session.token}` } })
+      const data = await response.json().catch(() => ({})); if (!response.ok) throw new Error(data.message || 'No se pudo iniciar la sincronización.')
+      setNotice({ kind: 'success', text: 'Sincronización SUNAT iniciada. Puedes dejar esta pantalla abierta para observar el progreso.' }); await loadSyncStatus()
+    } catch (error) { setNotice({ kind: 'error', text: error.message }) }
+    finally { setLoading(false) }
+  }
+
+  useEffect(() => {
+    if (view !== 'admin' || !session?.token) return
+    loadSyncStatus(); const timer = setInterval(loadSyncStatus, 5000); return () => clearInterval(timer)
+  }, [view, session?.token, loadSyncStatus])
 
   const submitTracking = async (event) => {
     event.preventDefault(); setLoading(true); setNotice(null)
@@ -91,7 +113,7 @@ function App() {
 
     {view === 'login' && <Page title="Accede a tu cuenta" subtitle="Ciudadanos y personal municipal.">{session ? <section className="panel compact result"><span className="status">{session.user.roles.join(', ')}</span><h2>Hola, {session.user.nombres}</h2><p>Tu sesión está activa y protegida con JWT.</p><button className="secondary" onClick={() => { sessionStorage.removeItem('mpct-session'); setSession(null) }}>Cerrar sesión</button></section> : <form className="form panel compact" onSubmit={submitLogin}><label>Correo electrónico<input name="email" type="email" required /></label><label>Contraseña<input name="password" type="password" required /></label><button className="primary" disabled={loading}>{loading ? 'Ingresando…' : 'Ingresar'}</button><button type="button" className="link">Crear una cuenta ciudadana</button></form>}</Page>}
 
-    {view === 'admin' && session?.user?.roles?.includes('ADMINISTRADOR') && <Page title="Panel administrativo" subtitle="Configuración y operación del sistema municipal."><div className="admin-grid"><aside className="panel admin-menu"><b>Administración</b><button className="active">Padrón SUNAT</button><button disabled>Solicitudes</button><button disabled>Usuarios y roles</button><button disabled>Inspecciones</button><button disabled>Cajas y tarifas</button><button onClick={() => { sessionStorage.removeItem('mpct-session'); setSession(null); setView('home') }}>Cerrar sesión</button></aside><section className="panel admin-content"><span className="eyebrow">Fuente oficial</span><h2>Importar Padrón Reducido SUNAT</h2><p>Selecciona un archivo TXT delimitado por <code>|</code>. La importación actualiza razón social, estado, condición, ubigeo y domicilio fiscal.</p><div className="warning-box"><b>Importante</b><span>Para Render gratuito usa un archivo filtrado de Trujillo. No subas directamente el ZIP nacional de 389 MB.</span></div><form className="form upload-form" onSubmit={importSunat}><label>Archivo oficial TXT<input name="archivo" type="file" accept=".txt,text/plain" required /></label><button className="primary" disabled={loading}>{loading ? 'Importando… no cierres esta página' : 'Importar padrón'}</button></form>{importResult && <div className="import-result"><span>✓</span><div><b>Importación terminada</b><p>{importResult.registros} registro(s) procesados correctamente.</p></div></div>}</section></div></Page>}
+    {view === 'admin' && session?.user?.roles?.includes('ADMINISTRADOR') && <Page title="Panel administrativo" subtitle="Configuración y operación del sistema municipal."><div className="admin-grid"><aside className="panel admin-menu"><b>Administración</b><button className="active">Padrón SUNAT</button><button disabled>Solicitudes</button><button disabled>Usuarios y roles</button><button disabled>Inspecciones</button><button disabled>Cajas y tarifas</button><button onClick={() => { sessionStorage.removeItem('mpct-session'); setSession(null); setView('home') }}>Cerrar sesión</button></aside><section className="panel admin-content"><span className="eyebrow">Fuente oficial</span><h2>Sincronizar Padrón Reducido SUNAT</h2><p>El sistema descarga el ZIP oficial, procesa sus datos por streaming y conserva únicamente personas jurídicas con domicilio fiscal en la provincia de Trujillo.</p><div className="sync-card"><div><b>Estado: {syncStatus?.estado || 'Consultando…'}</b><span>{syncStatus?.mensaje || 'Aún no se ha ejecutado la sincronización.'}</span></div>{syncStatus && <div className="sync-metrics"><span><b>{Number(syncStatus.lineasLeidas || 0).toLocaleString('es-PE')}</b> líneas revisadas</span><span><b>{Number(syncStatus.registrosTrujillo || 0).toLocaleString('es-PE')}</b> RUC de Trujillo</span></div>}<button className="primary" onClick={synchronizeSunat} disabled={loading || ['DESCARGANDO','PROCESANDO'].includes(syncStatus?.estado)}>{['DESCARGANDO','PROCESANDO'].includes(syncStatus?.estado) ? 'Sincronizando…' : 'Sincronizar ahora'}</button></div><details className="manual-import"><summary>Importación manual de contingencia</summary><form className="form upload-form" onSubmit={importSunat}><label>Archivo oficial TXT<input name="archivo" type="file" accept=".txt,text/plain" required /></label><button className="secondary" disabled={loading}>Importar archivo</button></form>{importResult && <div className="import-result"><span>✓</span><div><b>Importación terminada</b><p>{importResult.registros} registro(s) procesados correctamente.</p></div></div>}</details></section></div></Page>}
 
     <footer><div className="container"><div className="brand"><span className="crest">M</span><span>Portal de trámites<small>Licencias de funcionamiento</small></span></div><p>Servicio digital municipal · Atención segura y transparente</p><div><button>Privacidad</button><button>Accesibilidad</button><button>Ayuda</button></div></div></footer>
   </div>
