@@ -26,6 +26,10 @@ Las variables están preparadas para credenciales sandbox y producción. Nunca s
 
 Con Docker disponible: `docker compose up --build`. El frontend queda en `http://localhost:8080`; PostgreSQL y la API tienen health checks y los archivos se guardan en un volumen persistente.
 
+## Staging gratuito en Render
+
+El archivo `render.yaml` crea un servicio web gratuito y una base PostgreSQL gratuita. Es apropiado para validación, no para producción permanente: la base gratuita de Render expira 30 días después de su creación, tiene 1 GB y no incluye backups. Exporte los datos antes del vencimiento o migre a una base persistente.
+
 ## Verificación
 
 - Backend: `dotnet build MpctTramites.sln` y `dotnet test MpctTramites.sln`.

@@ -40,6 +40,6 @@ databases:
   - name: mpct-tramites-db
     databaseName: mpct_tramites
     user: mpct_app
-    plan: basic-256mb
+    plan: free
     region: oregon
     ipAllowList: []
