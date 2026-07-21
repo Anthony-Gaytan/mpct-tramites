@@ -40,6 +40,7 @@ function App() {
   );
   const [adminTab, setAdminTab] = useState("usuarios");
   const [staff, setStaff] = useState([]);
+  const [requestPhase, setRequestPhase] = useState("");
   const portalNotify = useCallback((text, kind = "error") => setNotice({ text, kind }), []);
 
   const submitLogin = async (event) => {
@@ -244,9 +245,14 @@ function App() {
       });
     }
     setLoading(true);
+    setRequestPhase("Registrando solicitud…");
     setNotice(null);
     try {
-      const values = Object.fromEntries(new FormData(event.currentTarget));
+      const formData = new FormData(event.currentTarget);
+      const archivo = formData.get("archivo");
+      const values = Object.fromEntries(formData);
+      delete values.archivo;
+      values.actividad = values.rubro;
       const result = await call("/solicitudes", {
         method: "POST",
         headers: { Authorization: `Bearer ${session.token}` },
@@ -256,6 +262,14 @@ function App() {
           areaMetrosCuadrados: Number(values.areaMetrosCuadrados),
         }),
       });
+      if (archivo?.size) {
+        setRequestPhase("Subiendo documentos…");
+        const upload = new FormData();
+        upload.append("archivo", archivo);
+        upload.append("tipo", "PLANO_DISTRIBUCION_RIESGOS");
+        const response = await fetch(`${API}/solicitudes/${result.id}/documentos`, { method: "POST", headers: { Authorization: `Bearer ${session.token}` }, body: upload });
+        if (!response.ok) { const data = await response.json().catch(() => ({})); throw new Error(data.message || "La solicitud se creó, pero no se pudo adjuntar el documento."); }
+      }
       setNotice({
         kind: "success",
         text: `Solicitud ${result.numeroExpediente} registrada. Guarda tu código: ${result.codigoSeguimiento}`,
@@ -265,6 +279,7 @@ function App() {
       setNotice({ kind: "error", text: error.message });
     } finally {
       setLoading(false);
+      setRequestPhase("");
     }
   };
 
@@ -524,9 +539,9 @@ function App() {
       {view === "apply" && (
         <Page
           title="Nueva solicitud"
-          subtitle="Primero validaremos los datos oficiales de tu empresa."
+          subtitle="Completa los datos para iniciar tu Licencia de Funcionamiento. Validaremos tu empresa automáticamente con SUNAT."
         >
-          <form className="form panel wide" onSubmit={submitRequest}>
+          <form className="form panel wide request-form" onSubmit={submitRequest}>
             <div className="form-grid">
               <label>
                 RUC de persona jurídica
@@ -570,49 +585,10 @@ function App() {
               </div>
             )}
             {sunat && (
-              <div className="form-grid request-details">
-                <label>
-                  Representante legal
-                  <input name="representanteNombre" required />
-                </label>
-                <label>
-                  DNI del representante
-                  <input
-                    name="representanteDocumento"
-                    pattern="[0-9]{8}"
-                    required
-                  />
-                </label>
-                <label>
-                  Correo de contacto
-                  <input name="representanteEmail" type="email" required />
-                </label>
-                <label>
-                  Rubro
-                  <input name="rubro" required />
-                </label>
-                <label>
-                  Actividad económica
-                  <input name="actividad" required />
-                </label>
-                <label>
-                  Área del local (m²)
-                  <input
-                    name="areaMetrosCuadrados"
-                    type="number"
-                    min="1"
-                    step="0.01"
-                    required
-                  />
-                </label>
-                <label className="full">
-                  Dirección del local
-                  <input name="direccionLocal" required />
-                </label>
-              </div>
+              <><div className="form-grid request-details"><label>DNI del representante<input name="representanteDocumento" inputMode="numeric" pattern="[0-9]{8}" maxLength="8" required placeholder="8 dígitos" /></label><label>Correo electrónico <small>(opcional)</small><input name="representanteEmail" type="email" placeholder="correo@ejemplo.com" /></label><label>Nombres y apellidos del titular<input name="representanteNombre" required /></label><label>Rubro del negocio<select name="rubro" required><option value="">Selecciona un rubro</option><option>Restaurante / Fuente de Soda</option><option>Bodega / Minimarket</option><option>Oficina administrativa</option><option>Comercio minorista</option><option>Servicios profesionales</option><option>Hospedaje</option><option>Otro</option></select></label><label>Área del local (m²)<input name="areaMetrosCuadrados" type="number" min="1" step="0.01" required /></label><label className="full">Dirección del establecimiento<input name="direccionLocal" required placeholder="Dirección donde funcionará el negocio" /></label></div><section className="document-box"><div><span className="upload-icon">⇧</span><div><b>Documentos adjuntos</b><small>Plano de distribución y riesgos (PDF o imagen, máximo 10 MB)</small></div></div><input name="archivo" type="file" accept="application/pdf,image/jpeg,image/png" required /></section></>
             )}
             <button className="primary" disabled={loading}>
-              {loading ? "Validando…" : "Continuar"}
+              {requestPhase || (loading ? "Validando…" : "Registrar solicitud")}
             </button>
           </form>
         </Page>
