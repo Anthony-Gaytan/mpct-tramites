@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Identity;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace MpctTramites.Api.Domain;
 
@@ -53,6 +54,8 @@ public sealed class RegistroPadronSunat
     public string Ubigeo { get; set; } = string.Empty;
     public string Direccion { get; set; } = string.Empty;
     public DateTimeOffset ImportadoEn { get; set; } = DateTimeOffset.UtcNow;
+    [NotMapped] public string RepresentanteDocumento { get; set; } = string.Empty;
+    [NotMapped] public string RepresentanteNombre { get; set; } = string.Empty;
 }
 
 public sealed class Solicitud

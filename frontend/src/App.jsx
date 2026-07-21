@@ -41,7 +41,10 @@ function App() {
   const [adminTab, setAdminTab] = useState("usuarios");
   const [staff, setStaff] = useState([]);
   const [requestPhase, setRequestPhase] = useState("");
-  const portalNotify = useCallback((text, kind = "error") => setNotice({ text, kind }), []);
+  const portalNotify = useCallback(
+    (text, kind = "error") => setNotice({ text, kind }),
+    [],
+  );
 
   const submitLogin = async (event) => {
     event.preventDefault();
@@ -267,8 +270,21 @@ function App() {
         const upload = new FormData();
         upload.append("archivo", archivo);
         upload.append("tipo", "PLANO_DISTRIBUCION_RIESGOS");
-        const response = await fetch(`${API}/solicitudes/${result.id}/documentos`, { method: "POST", headers: { Authorization: `Bearer ${session.token}` }, body: upload });
-        if (!response.ok) { const data = await response.json().catch(() => ({})); throw new Error(data.message || "La solicitud se creó, pero no se pudo adjuntar el documento."); }
+        const response = await fetch(
+          `${API}/solicitudes/${result.id}/documentos`,
+          {
+            method: "POST",
+            headers: { Authorization: `Bearer ${session.token}` },
+            body: upload,
+          },
+        );
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(
+            data.message ||
+              "La solicitud se creó, pero no se pudo adjuntar el documento.",
+          );
+        }
       }
       setNotice({
         kind: "success",
@@ -541,7 +557,10 @@ function App() {
           title="Nueva solicitud"
           subtitle="Completa los datos para iniciar tu Licencia de Funcionamiento. Validaremos tu empresa automáticamente con SUNAT."
         >
-          <form className="form panel wide request-form" onSubmit={submitRequest}>
+          <form
+            className="form panel wide request-form"
+            onSubmit={submitRequest}
+          >
             <div className="form-grid">
               <label>
                 RUC de persona jurídica
@@ -585,7 +604,85 @@ function App() {
               </div>
             )}
             {sunat && (
-              <><div className="form-grid request-details"><label>DNI del representante<input name="representanteDocumento" inputMode="numeric" pattern="[0-9]{8}" maxLength="8" required placeholder="8 dígitos" /></label><label>Correo electrónico <small>(opcional)</small><input name="representanteEmail" type="email" placeholder="correo@ejemplo.com" /></label><label>Nombres y apellidos del titular<input name="representanteNombre" required /></label><label>Rubro del negocio<select name="rubro" required><option value="">Selecciona un rubro</option><option>Restaurante / Fuente de Soda</option><option>Bodega / Minimarket</option><option>Oficina administrativa</option><option>Comercio minorista</option><option>Servicios profesionales</option><option>Hospedaje</option><option>Otro</option></select></label><label>Área del local (m²)<input name="areaMetrosCuadrados" type="number" min="1" step="0.01" required /></label><label className="full">Dirección del establecimiento<input name="direccionLocal" required placeholder="Dirección donde funcionará el negocio" /></label></div><section className="document-box"><div><span className="upload-icon">⇧</span><div><b>Documentos adjuntos</b><small>Plano de distribución y riesgos (PDF o imagen, máximo 10 MB)</small></div></div><input name="archivo" type="file" accept="application/pdf,image/jpeg,image/png" required /></section></>
+              <>
+                <div className="form-grid request-details">
+                <label>
+                  DNI del representante
+                  <input
+                    name="representanteDocumento"
+                    readOnly
+                    value={sunat.representanteDocumento || ""}
+                    required
+                  />
+                  </label>
+                  <label>
+                    Correo electrónico <small>(opcional)</small>
+                    <input
+                      name="representanteEmail"
+                      type="email"
+                      placeholder="correo@ejemplo.com"
+                    />
+                  </label>
+                <label>
+                  Nombres y apellidos del titular
+                  <input
+                    name="representanteNombre"
+                    readOnly
+                    value={sunat.representanteNombre || ""}
+                    required
+                  />
+                  </label>
+                  <label>
+                    Rubro del negocio
+                    <select name="rubro" required>
+                      <option value="">Selecciona un rubro</option>
+                      <option>Restaurante / Fuente de Soda</option>
+                      <option>Bodega / Minimarket</option>
+                      <option>Oficina administrativa</option>
+                      <option>Comercio minorista</option>
+                      <option>Servicios profesionales</option>
+                      <option>Hospedaje</option>
+                      <option>Otro</option>
+                    </select>
+                  </label>
+                  <label>
+                    Área del local (m²)
+                    <input
+                      name="areaMetrosCuadrados"
+                      type="number"
+                      min="1"
+                      step="0.01"
+                      required
+                    />
+                  </label>
+                  <label className="full">
+                    Dirección del establecimiento
+                    <input
+                      name="direccionLocal"
+                      required
+                      placeholder="Dirección donde funcionará el negocio"
+                    />
+                  </label>
+                </div>
+                <section className="document-box">
+                  <div>
+                    <span className="upload-icon">⇧</span>
+                    <div>
+                      <b>Documentos adjuntos</b>
+                      <small>
+                        Plano de distribución y riesgos (PDF o imagen, máximo 10
+                        MB)
+                      </small>
+                    </div>
+                  </div>
+                  <input
+                    name="archivo"
+                    type="file"
+                    accept="application/pdf,image/jpeg,image/png"
+                    required
+                  />
+                </section>
+              </>
             )}
             <button className="primary" disabled={loading}>
               {requestPhase || (loading ? "Validando…" : "Registrar solicitud")}
@@ -682,16 +779,10 @@ function App() {
         />
       )}
       {view === "cashier" && session?.user?.roles?.includes("CAJERO") && (
-        <CashierPortal
-          session={session}
-          notify={portalNotify}
-        />
+        <CashierPortal session={session} notify={portalNotify} />
       )}
       {view === "inspector" && session?.user?.roles?.includes("INSPECTOR") && (
-        <InspectorPortal
-          session={session}
-          notify={portalNotify}
-        />
+        <InspectorPortal session={session} notify={portalNotify} />
       )}
 
       {view === "admin" && session?.user?.roles?.includes("ADMINISTRADOR") && (

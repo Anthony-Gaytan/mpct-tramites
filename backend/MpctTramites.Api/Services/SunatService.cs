@@ -57,7 +57,16 @@ public sealed class SunatService(AppDbContext db, SunatSyncState syncState, IHtt
             if(!estado.Equals("ACTIVO",StringComparison.OrdinalIgnoreCase))return(null,$"El RUC no se encuentra ACTIVO. Estado actual: {estado}.");
             if(!condicion.Equals("HABIDO",StringComparison.OrdinalIgnoreCase))return(null,$"El RUC no está HABIDO. Condición actual: {condicion}.");
             if(!provincia.Equals("TRUJILLO",StringComparison.OrdinalIgnoreCase)&&!ubigeo.StartsWith("1301"))return(null,"El domicilio fiscal debe ubicarse en la provincia de Trujillo, La Libertad.");
-            return(new RegistroPadronSunat{Ruc=ruc,RazonSocial=Get("nombre_o_razon_social","nombre","razon_social"),Estado=estado,Condicion=condicion,Ubigeo=ubigeo,Direccion=Get("direccion_completa","direccion")},null);
+            using var repRequest=new HttpRequestMessage(HttpMethod.Post,"api/ruc/representantes");repRequest.Headers.Authorization=new AuthenticationHeaderValue("Bearer",apiKey);repRequest.Content=JsonContent.Create(new{ruc});
+            using var repResponse=await client.SendAsync(repRequest,ct);if(!repResponse.IsSuccessStatusCode)return(null,"El RUC es válido, pero no se pudieron obtener sus representantes legales.");
+            using var repJson=JsonDocument.Parse(await repResponse.Content.ReadAsStringAsync(ct));var repRoot=repJson.RootElement;
+            if(!repRoot.TryGetProperty("data",out var representatives)||representatives.ValueKind!=JsonValueKind.Array)return(null,"SUNAT no registra representantes legales disponibles para este RUC.");
+            var priorities=new[]{"GERENTE GENERAL","TITULAR-GERENTE","GERENTE","APODERADO","PRESIDENTE DE DIRECTORIO","DIRECTOR GERENTE"};JsonElement? selected=null;var best=int.MaxValue;
+            foreach(var representative in representatives.EnumerateArray()){var cargo=representative.TryGetProperty("cargo",out var cargoValue)?cargoValue.GetString()?.ToUpperInvariant()??"":"";for(var i=0;i<priorities.Length;i++)if(cargo.Contains(priorities[i])&&i<best){selected=representative;best=i;break;}}
+            if(selected is null)return(null,"SUNAT no registra un gerente o apoderado disponible para este RUC.");
+            string RepGet(params string[] names){foreach(var name in names)if(selected.Value.TryGetProperty(name,out var value)&&value.ValueKind==JsonValueKind.String)return value.GetString()?.Trim()??"";return "";}
+            var repDocument=RepGet("numero_de_documento","numero_documento","documento");var repName=RepGet("nombre","nombre_completo");if(string.IsNullOrWhiteSpace(repDocument)||string.IsNullOrWhiteSpace(repName))return(null,"Los datos del representante legal están incompletos en SUNAT.");
+            return(new RegistroPadronSunat{Ruc=ruc,RazonSocial=Get("nombre_o_razon_social","nombre","razon_social"),Estado=estado,Condicion=condicion,Ubigeo=ubigeo,Direccion=Get("direccion_completa","direccion"),RepresentanteDocumento=repDocument,RepresentanteNombre=repName},null);
         }
         catch(Exception ex){logger.LogWarning(ex,"Falló la consulta de RUC {Ruc} en JSON.pe",ruc);return(null,"No se pudo validar el RUC en este momento. Intenta nuevamente.");}
     }
