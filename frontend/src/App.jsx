@@ -868,19 +868,19 @@ function App() {
                 <>
                   <span className="eyebrow">Personal municipal</span>
                   <h2>Usuarios y roles</h2>
-                  <form className="form staff-form" onSubmit={createStaff}>
+                  <form className="form staff-form" onSubmit={createStaff} autoComplete="off">
                     <div className="form-grid">
                       <label>
                         Nombres
-                        <input name="nombres" required />
+                        <input name="nombres" autoComplete="off" required />
                       </label>
                       <label>
                         Apellidos
-                        <input name="apellidos" required />
+                        <input name="apellidos" autoComplete="off" required />
                       </label>
                       <label>
                         Correo institucional
-                        <input name="email" type="email" required />
+                        <input name="email" type="email" autoComplete="off" required placeholder="correo diferente al administrador" />
                       </label>
                       <label>
                         Rol
@@ -894,6 +894,7 @@ function App() {
                         <input
                           name="password"
                           type="password"
+                          autoComplete="new-password"
                           minLength="10"
                           required
                           placeholder="Mínimo 10 caracteres"
