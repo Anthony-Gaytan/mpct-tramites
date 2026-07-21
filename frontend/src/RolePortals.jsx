@@ -52,7 +52,7 @@ export function CitizenPortal({ session, onNew, notify }) {
     </Portal>
   );
 }
-export function CashierPortal({ session, notify, onNew }) {
+export function CashierPortal({ session, notify, onNew, onLogout }) {
   const [status, setStatus] = useState(null),
     [found, setFound] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState(1);
@@ -117,6 +117,7 @@ export function CashierPortal({ session, notify, onNew }) {
       title="Módulo de caja"
       subtitle="Apertura de caja y cobros presenciales."
     >
+      <StaffAccount session={session} notify={notify} onLogout={onLogout}/>
       <button className="primary" onClick={onNew}>Registrar trámite presencial</button>
       {!status?.abierta ? (
         <form className="form portal-form" onSubmit={open}>
@@ -163,7 +164,7 @@ export function CashierPortal({ session, notify, onNew }) {
     </Portal>
   );
 }
-export function InspectorPortal({ session, notify }) {
+export function InspectorPortal({ session, notify, onLogout }) {
   const [items, setItems] = useState([]);
   const load = useCallback(
     () =>
@@ -201,6 +202,7 @@ export function InspectorPortal({ session, notify }) {
       title="Panel del inspector"
       subtitle="Inspecciones asignadas y evaluación técnica."
     >
+      <StaffAccount session={session} notify={notify} onLogout={onLogout}/>
       <div className="portal-list">
         {items.length ? (
           items.map((x) => (
@@ -305,3 +307,4 @@ function Portal({ title, subtitle, children }) {
 function Empty({ text }) {
   return <div className="empty-state">{text}</div>;
 }
+function StaffAccount({session,notify,onLogout}){const update=async event=>{event.preventDefault();try{const result=await request("/auth/perfil",session,{method:"PUT",body:JSON.stringify(Object.fromEntries(new FormData(event.currentTarget)))});notify(result.message,"success");onLogout()}catch(error){notify(error.message)}};return <div className="staff-account"><details><summary>Mi cuenta</summary><form className="form" onSubmit={update}><div className="form-grid"><label>Nombres<input name="nombres" defaultValue={session.user.nombres} required /></label><label>Apellidos<input name="apellidos" defaultValue={session.user.apellidos||""} required /></label><label className="full">Correo<input name="email" type="email" defaultValue={session.user.email||""} required /></label><label>Contraseña actual<input name="passwordActual" type="password" required /></label><label>Nueva contraseña (opcional)<input name="passwordNueva" type="password" minLength="10" /></label></div><button className="primary">Guardar cambios</button></form></details><button className="secondary" onClick={onLogout}>Cerrar sesión</button></div>}

@@ -53,6 +53,7 @@ function App() {
     (text, kind = "error") => setNotice({ text, kind }),
     [],
   );
+  const logout = useCallback(()=>{sessionStorage.removeItem("mpct-session");setSession(null);setView("home")},[]);
 
   const submitLogin = async (event) => {
     event.preventDefault();
@@ -811,10 +812,10 @@ function App() {
         />
       )}
       {view === "cashier" && session?.user?.roles?.includes("CAJERO") && (
-        <CashierPortal session={session} notify={portalNotify} onNew={()=>setView("apply")} />
+        <CashierPortal session={session} notify={portalNotify} onNew={()=>setView("apply")} onLogout={logout} />
       )}
       {view === "inspector" && session?.user?.roles?.includes("INSPECTOR") && (
-        <InspectorPortal session={session} notify={portalNotify} />
+        <InspectorPortal session={session} notify={portalNotify} onLogout={logout} />
       )}
 
       {view === "admin" && session?.user?.roles?.includes("ADMINISTRADOR") && (
