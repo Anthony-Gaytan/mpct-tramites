@@ -11,4 +11,5 @@ public record ResultadoInspeccionRequest(string Estado, string? Observaciones, s
 public record CrearPersonalRequest(string Email, string Password, string Nombres, string Apellidos, string Rol);
 public record CambiarEstadoUsuarioRequest(bool Activo, string? Motivo);
 public record RestablecerPasswordRequest(string PasswordNueva);
+public record RevisarPagoRequest(bool Aprobado, string? Motivo);
 public record ActualizarPerfilRequest(string Email, string Nombres, string Apellidos, string PasswordActual, string? PasswordNueva);

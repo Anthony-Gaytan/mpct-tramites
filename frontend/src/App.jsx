@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import "./App.css";
-import { CashierPortal, CitizenPortal, InspectorPortal } from "./RolePortals";
+import {
+  CashierPortal,
+  CitizenPortal,
+  InspectorPortal,
+  SupervisorPayments,
+} from "./RolePortals";
 
 const API = import.meta.env.VITE_API_URL || "/api";
 const steps = [
@@ -42,6 +47,7 @@ function App() {
   const [staff, setStaff] = useState([]);
   const [requestPhase, setRequestPhase] = useState("");
   const [businessType, setBusinessType] = useState("");
+  const [pendingRequest, setPendingRequest] = useState(null);
   const portalNotify = useCallback(
     (text, kind = "error") => setNotice({ text, kind }),
     [],
@@ -254,9 +260,12 @@ function App() {
       values.actividad = values.rubro;
       const result = await call("/solicitudes", {
         method: "POST",
-        headers: session?.token ? { Authorization: `Bearer ${session.token}` } : {},
+        headers: session?.token
+          ? { Authorization: `Bearer ${session.token}` }
+          : {},
         body: JSON.stringify({
           ...values,
+          direccionLocal: sunat.direccion,
           tipo: Number(values.tipo),
           areaMetrosCuadrados: Number(values.areaMetrosCuadrados),
         }),
@@ -270,7 +279,9 @@ function App() {
           `${API}/solicitudes/${result.id}/documentos?codigo=${encodeURIComponent(result.uploadToken)}`,
           {
             method: "POST",
-            headers: session?.token ? { Authorization: `Bearer ${session.token}` } : {},
+            headers: session?.token
+              ? { Authorization: `Bearer ${session.token}` }
+              : {},
             body: upload,
           },
         );
@@ -284,14 +295,41 @@ function App() {
       }
       setNotice({
         kind: "success",
-        text: `Solicitud ${result.numeroExpediente} registrada correctamente. Podrás consultarla usando tu RUC.`,
+        text: `Solicitud ${result.numeroExpediente} registrada. Continúa con el pago de S/ ${Number(result.tarifa).toFixed(2)}.`,
       });
-      setView(session?.user?.roles?.includes("CIUDADANO") ? "citizen" : "track");
+      setPendingRequest(result);
+      setView(session?.user?.roles?.includes("CAJERO") ? "cashier" : "payment");
     } catch (error) {
       setNotice({ kind: "error", text: error.message });
     } finally {
       setLoading(false);
       setRequestPhase("");
+    }
+  };
+
+  const submitVoucher = async (event) => {
+    event.preventDefault();
+    setLoading(true);
+    setNotice(null);
+    try {
+      const form = new FormData(event.currentTarget);
+      const response = await fetch(
+        `${API}/pagos/voucher/${pendingRequest.id}?codigo=${encodeURIComponent(pendingRequest.uploadToken)}&medio=${form.get("medio")}`,
+        { method: "POST", body: form },
+      );
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok)
+        throw new Error(data.message || "No se pudo enviar el voucher.");
+      setNotice({
+        kind: "success",
+        text: "Voucher enviado. El supervisor revisará el pago.",
+      });
+      setView("track");
+      setPendingRequest(null);
+    } catch (error) {
+      setNotice({ kind: "error", text: error.message });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -598,14 +636,14 @@ function App() {
             {sunat && (
               <>
                 <div className="form-grid request-details">
-                <label>
-                  DNI del representante
-                  <input
-                    name="representanteDocumento"
-                    readOnly
-                    value={sunat.representanteDocumento || ""}
-                    required
-                  />
+                  <label>
+                    DNI del representante
+                    <input
+                      name="representanteDocumento"
+                      readOnly
+                      value={sunat.representanteDocumento || ""}
+                      required
+                    />
                   </label>
                   <label>
                     Correo electrónico <small>(opcional)</small>
@@ -615,18 +653,23 @@ function App() {
                       placeholder="correo@ejemplo.com"
                     />
                   </label>
-                <label>
-                  Nombres y apellidos del titular
-                  <input
-                    name="representanteNombre"
-                    readOnly
-                    value={sunat.representanteNombre || ""}
-                    required
-                  />
+                  <label>
+                    Nombres y apellidos del titular
+                    <input
+                      name="representanteNombre"
+                      readOnly
+                      value={sunat.representanteNombre || ""}
+                      required
+                    />
                   </label>
                   <label>
                     Rubro del negocio
-                    <select name="rubro" required value={businessType} onChange={(event)=>setBusinessType(event.target.value)}>
+                    <select
+                      name="rubro"
+                      required
+                      value={businessType}
+                      onChange={(event) => setBusinessType(event.target.value)}
+                    >
                       <option value="">Selecciona un rubro</option>
                       <option>Restaurante / Fuente de Soda</option>
                       <option>Bodega / Minimarket</option>
@@ -637,7 +680,16 @@ function App() {
                       <option>Otro</option>
                     </select>
                   </label>
-                  {businessType === "Otro" && <label>Especifica el rubro<input name="rubroOtro" required placeholder="Escribe la actividad del negocio" /></label>}
+                  {businessType === "Otro" && (
+                    <label>
+                      Especifica el rubro
+                      <input
+                        name="rubroOtro"
+                        required
+                        placeholder="Escribe la actividad del negocio"
+                      />
+                    </label>
+                  )}
                   <label>
                     Área del local (m²)
                     <input
@@ -646,14 +698,6 @@ function App() {
                       min="1"
                       step="0.01"
                       required
-                    />
-                  </label>
-                  <label className="full">
-                    Dirección del establecimiento
-                    <input
-                      name="direccionLocal"
-                      required
-                      placeholder="Dirección donde funcionará el negocio"
                     />
                   </label>
                 </div>
@@ -681,6 +725,46 @@ function App() {
               {requestPhase || (loading ? "Validando…" : "Registrar solicitud")}
             </button>
           </form>
+        </Page>
+      )}
+
+      {view === "payment" && pendingRequest && (
+        <Page
+          title="Realiza el pago"
+          subtitle={`Tu expediente ${pendingRequest.numeroExpediente} fue registrado correctamente.`}
+        >
+          <section className="panel payment-panel">
+            <div className="payment-total">
+              <span>Derecho de trámite</span>
+              <strong>S/ {Number(pendingRequest.tarifa).toFixed(2)}</strong>
+            </div>
+            <p>
+              Realiza el pago mediante Yape, transferencia o tarjeta y adjunta
+              el comprobante para revisión.
+            </p>
+            <form className="form" onSubmit={submitVoucher}>
+              <label>
+                Medio de pago
+                <select name="medio" required>
+                  <option value="5">Yape</option>
+                  <option value="3">Transferencia</option>
+                  <option value="2">Tarjeta</option>
+                </select>
+              </label>
+              <label>
+                Voucher de pago
+                <input
+                  name="archivo"
+                  type="file"
+                  accept="application/pdf,image/jpeg,image/png"
+                  required
+                />
+              </label>
+              <button className="primary" disabled={loading}>
+                {loading ? "Enviando…" : "Enviar voucher para revisión"}
+              </button>
+            </form>
+          </section>
         </Page>
       )}
 
@@ -772,7 +856,7 @@ function App() {
         />
       )}
       {view === "cashier" && session?.user?.roles?.includes("CAJERO") && (
-        <CashierPortal session={session} notify={portalNotify} />
+        <CashierPortal session={session} notify={portalNotify} onNew={()=>setView("apply")} />
       )}
       {view === "inspector" && session?.user?.roles?.includes("INSPECTOR") && (
         <InspectorPortal session={session} notify={portalNotify} />
@@ -798,6 +882,12 @@ function App() {
               >
                 Mi cuenta
               </button>
+              <button
+                className={adminTab === "pagos" ? "active" : ""}
+                onClick={() => setAdminTab("pagos")}
+              >
+                Revisar pagos
+              </button>
               <button disabled>Solicitudes</button>
               <button disabled>Inspecciones</button>
               <button disabled>Cajas y tarifas</button>
@@ -812,7 +902,13 @@ function App() {
               </button>
             </aside>
             <section className="panel admin-content">
-              {adminTab === "usuarios" ? (
+              {adminTab === "pagos" ? (
+                <>
+                  <span className="eyebrow">Supervisión</span>
+                  <h2>Vouchers pendientes</h2>
+                  <SupervisorPayments session={session} notify={portalNotify} />
+                </>
+              ) : adminTab === "usuarios" ? (
                 <>
                   <span className="eyebrow">Personal municipal</span>
                   <h2>Usuarios y roles</h2>

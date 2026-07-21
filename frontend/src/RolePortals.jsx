@@ -52,14 +52,20 @@ export function CitizenPortal({ session, onNew, notify }) {
     </Portal>
   );
 }
-export function CashierPortal({ session, notify }) {
+export function CashierPortal({ session, notify, onNew }) {
   const [status, setStatus] = useState(null),
     [found, setFound] = useState(null);
-  const refresh = useCallback(() =>
-    request("/cajas/estado", session)
-      .then(setStatus)
-      .catch((e) => notify(e.message)), [session, notify]);
-  useEffect(() => { refresh(); }, [refresh]);
+  const [paymentMethod, setPaymentMethod] = useState(1);
+  const refresh = useCallback(
+    () =>
+      request("/cajas/estado", session)
+        .then(setStatus)
+        .catch((e) => notify(e.message)),
+    [session, notify],
+  );
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
   const open = async (e) => {
     e.preventDefault();
     try {
@@ -96,7 +102,7 @@ export function CashierPortal({ session, notify }) {
         method: "POST",
         body: JSON.stringify({
           solicitudId: found.id,
-          medio: 0,
+          medio: Number(paymentMethod),
           monto: found.tarifa,
         }),
       });
@@ -111,6 +117,7 @@ export function CashierPortal({ session, notify }) {
       title="Módulo de caja"
       subtitle="Apertura de caja y cobros presenciales."
     >
+      <button className="primary" onClick={onNew}>Registrar trámite presencial</button>
       {!status?.abierta ? (
         <form className="form portal-form" onSubmit={open}>
           <label>
@@ -145,6 +152,7 @@ export function CashierPortal({ session, notify }) {
                 <span>{found.numeroExpediente}</span>
               </div>
               <strong>S/ {Number(found.tarifa).toFixed(2)}</strong>
+              <select value={paymentMethod} onChange={(event)=>setPaymentMethod(event.target.value)}><option value="1">Efectivo</option><option value="5">Yape</option><option value="2">Tarjeta</option></select>
               <button className="primary" onClick={pay}>
                 Registrar pago
               </button>
@@ -157,11 +165,16 @@ export function CashierPortal({ session, notify }) {
 }
 export function InspectorPortal({ session, notify }) {
   const [items, setItems] = useState([]);
-  const load = useCallback(() =>
-    request("/inspecciones/mias", session)
-      .then(setItems)
-      .catch((e) => notify(e.message)), [session, notify]);
-  useEffect(() => { load(); }, [load]);
+  const load = useCallback(
+    () =>
+      request("/inspecciones/mias", session)
+        .then(setItems)
+        .catch((e) => notify(e.message)),
+    [session, notify],
+  );
+  useEffect(() => {
+    load();
+  }, [load]);
   const finish = async (item) => {
     const observaciones =
       window.prompt("Observaciones de la inspección:") ?? "";
@@ -209,6 +222,69 @@ export function InspectorPortal({ session, notify }) {
         )}
       </div>
     </Portal>
+  );
+}
+export function SupervisorPayments({ session, notify }) {
+  const [items, setItems] = useState([]);
+  const load = useCallback(
+    () =>
+      request("/admin/pagos/pendientes", session)
+        .then(setItems)
+        .catch((e) => notify(e.message)),
+    [session, notify],
+  );
+  useEffect(() => {
+    load();
+  }, [load]);
+  const review = async (item, aprobado) => {
+    const motivo = aprobado ? null : window.prompt("Motivo del rechazo:");
+    if (!aprobado && !motivo) return;
+    try {
+      await request(`/admin/pagos/${item.id}/revisar`, session, {
+        method: "POST",
+        body: JSON.stringify({ aprobado, motivo }),
+      });
+      load();
+      notify(
+        aprobado
+          ? "Pago aprobado y licencia autorizada."
+          : "Voucher rechazado.",
+        "success",
+      );
+    } catch (error) {
+      notify(error.message);
+    }
+  };
+  const openVoucher=async(item)=>{try{const response=await fetch(`${API}/admin/pagos/${item.id}/voucher`,{headers:{Authorization:`Bearer ${session.token}`}});if(!response.ok)throw new Error("No se pudo abrir el voucher.");const url=URL.createObjectURL(await response.blob());window.open(url,"_blank","noopener,noreferrer");setTimeout(()=>URL.revokeObjectURL(url),60000)}catch(error){notify(error.message)}};
+  return (
+    <div className="portal-list">
+      {items.length ? (
+        items.map((x) => (
+          <article key={x.id}>
+            <div>
+              <b>{x.razonSocial}</b>
+              <span>
+                {x.numeroExpediente} · {x.medio} · {x.voucherNombre}
+              </span>
+            </div>
+            <strong>S/ {Number(x.monto).toFixed(2)}</strong>
+            <div className="staff-actions">
+              <button className="secondary" onClick={()=>openVoucher(x)}>
+                Ver voucher
+              </button>
+              <button className="primary" onClick={() => review(x, true)}>
+                Aprobar
+              </button>
+              <button className="danger-link" onClick={() => review(x, false)}>
+                Rechazar
+              </button>
+            </div>
+          </article>
+        ))
+      ) : (
+        <Empty text="No hay vouchers pendientes de revisión." />
+      )}
+    </div>
   );
 }
 function Portal({ title, subtitle, children }) {

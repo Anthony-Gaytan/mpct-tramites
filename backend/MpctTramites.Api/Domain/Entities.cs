@@ -6,7 +6,7 @@ namespace MpctTramites.Api.Domain;
 public enum EstadoSolicitud { Borrador, PendientePago, EnRevision, InspeccionProgramada, Observada, Subsanada, Aprobada, Rechazada, Cancelada }
 public enum EstadoPago { Pendiente, Aprobado, Rechazado, Cancelado, Reembolsado }
 public enum TipoSolicitud { Nueva, Renovacion, Modificacion }
-public enum MedioPago { MercadoPago, Efectivo, Tarjeta, Transferencia, Otro }
+public enum MedioPago { MercadoPago, Efectivo, Tarjeta, Transferencia, Otro, Yape }
 
 public sealed class Usuario : IdentityUser<Guid>
 {
@@ -115,6 +115,10 @@ public sealed class Pago
     public decimal Monto { get; set; }
     public string? IdentificadorExterno { get; set; }
     public string? RespuestaAuditada { get; set; }
+    public string? VoucherNombre { get; set; }
+    public string? VoucherRuta { get; set; }
+    public string? MotivoRevision { get; set; }
+    public Guid? RevisadoPorId { get; set; }
     public DateTimeOffset CreadoEn { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? ConfirmadoEn { get; set; }
 }

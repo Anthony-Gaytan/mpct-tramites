@@ -10,8 +10,18 @@ using MpctTramites.Api.Domain;
 namespace MpctTramites.Api.Controllers;
 
 [ApiController, Route("api/pagos")]
-public sealed class PagosController(AppDbContext db, IHttpClientFactory clients, IConfiguration config) : ControllerBase
+public sealed class PagosController(AppDbContext db, IHttpClientFactory clients, IConfiguration config, IWebHostEnvironment env) : ControllerBase
 {
+    [HttpPost("voucher/{solicitudId:guid}")][RequestSizeLimit(10_485_760)]
+    public async Task<IActionResult> UploadVoucher(Guid solicitudId,IFormFile archivo,string codigo,MedioPago medio,CancellationToken ct)
+    {
+        if(medio is not (MedioPago.Yape or MedioPago.Transferencia or MedioPago.Tarjeta))return BadRequest(new{message="Medio de pago no válido para voucher."});
+        if(archivo.Length<=0||archivo.Length>10_485_760||!new[]{"application/pdf","image/jpeg","image/png"}.Contains(archivo.ContentType))return BadRequest(new{message="Adjunta un voucher PDF, JPG o PNG de hasta 10 MB."});
+        var solicitud=await db.Solicitudes.SingleOrDefaultAsync(x=>x.Id==solicitudId,ct);if(solicitud is null)return NotFound();
+        var expected=Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(codigo.Trim().ToUpperInvariant())));if(solicitud.CodigoSeguimientoHash!=expected)return Unauthorized(new{message="La autorización de pago no es válida."});
+        var folder=Path.Combine(env.ContentRootPath,"storage","vouchers");Directory.CreateDirectory(folder);var name=$"{Guid.NewGuid():N}{Path.GetExtension(archivo.FileName).ToLowerInvariant()}";var path=Path.Combine(folder,name);await using(var stream=System.IO.File.Create(path))await archivo.CopyToAsync(stream,ct);
+        var pago=new Pago{SolicitudId=solicitudId,Medio=medio,Monto=solicitud.Tarifa,VoucherNombre=Path.GetFileName(archivo.FileName),VoucherRuta=path};db.Pagos.Add(pago);solicitud.Historial.Add(new HistorialEstado{Estado=solicitud.Estado,Comentario="Voucher enviado para revisión"});await db.SaveChangesAsync(ct);return Ok(new{pago.Id,pago.Estado,pago.Monto,message="Voucher enviado para revisión."});
+    }
     [Authorize, HttpPost("mercadopago/preferencia/{solicitudId:guid}")]
     public async Task<IActionResult> CreatePreference(Guid solicitudId, CancellationToken ct)
     {
