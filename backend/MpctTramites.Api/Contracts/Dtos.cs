@@ -12,4 +12,5 @@ public record CrearPersonalRequest(string Email, string Password, string Nombres
 public record CambiarEstadoUsuarioRequest(bool Activo, string? Motivo);
 public record RestablecerPasswordRequest(string PasswordNueva);
 public record RevisarPagoRequest(bool Aprobado, string? Motivo);
+public record ActualizarTarifaRequest(decimal Monto);
 public record ActualizarPerfilRequest(string Email, string Nombres, string Apellidos, string PasswordActual, string? PasswordNueva);

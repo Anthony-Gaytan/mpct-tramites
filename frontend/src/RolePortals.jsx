@@ -287,6 +287,7 @@ export function SupervisorPayments({ session, notify }) {
     </div>
   );
 }
+export function TariffManager({session,notify}){const[items,setItems]=useState([]);const load=useCallback(()=>request("/admin/tarifas",session).then(setItems).catch(e=>notify(e.message)),[session,notify]);useEffect(()=>{load()},[load]);const save=async(event,item)=>{event.preventDefault();const monto=Number(new FormData(event.currentTarget).get("monto"));try{await request(`/admin/tarifas/${item.tipo}`,session,{method:"PUT",body:JSON.stringify({monto})});load();notify("Tarifa actualizada correctamente.","success")}catch(error){notify(error.message)}};const names=["Nueva licencia","Renovación","Modificación"];return <div className="tariff-grid">{items.map(item=><form key={item.id} className="tariff-card" onSubmit={event=>save(event,item)}><span>{names[item.tipo]||item.tipo}</span><label>Importe (S/)<input name="monto" type="number" min="0.01" max="10000" step="0.01" defaultValue={item.monto} required /></label><button className="primary">Guardar tarifa</button></form>)}</div>}
 function Portal({ title, subtitle, children }) {
   return (
     <main className="page role-portal">

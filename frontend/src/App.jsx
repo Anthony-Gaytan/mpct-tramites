@@ -5,6 +5,7 @@ import {
   CitizenPortal,
   InspectorPortal,
   SupervisorPayments,
+  TariffManager,
 } from "./RolePortals";
 
 const API = import.meta.env.VITE_API_URL || "/api";
@@ -303,32 +304,6 @@ function App() {
     } finally {
       setLoading(false);
       setRequestPhase("");
-    }
-  };
-
-  const submitVoucher = async (event) => {
-    event.preventDefault();
-    setLoading(true);
-    setNotice(null);
-    try {
-      const form = new FormData(event.currentTarget);
-      const response = await fetch(
-        `${API}/pagos/voucher/${pendingRequest.id}?codigo=${encodeURIComponent(pendingRequest.uploadToken)}&medio=${form.get("medio")}`,
-        { method: "POST", body: form },
-      );
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok)
-        throw new Error(data.message || "No se pudo enviar el voucher.");
-      setNotice({
-        kind: "success",
-        text: "Voucher enviado. El supervisor revisará el pago.",
-      });
-      setView("track");
-      setPendingRequest(null);
-    } catch (error) {
-      setNotice({ kind: "error", text: error.message });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -744,32 +719,6 @@ function App() {
               <strong>S/ {Number(pendingRequest.tarifa).toFixed(2)}</strong>
             </div>
             <button className="primary gateway-button" onClick={payWithMercadoPago} disabled={loading}>{loading?"Conectando…":"Pagar ahora con Mercado Pago"}</button>
-            <div className="payment-divider"><span>o adjunta un comprobante</span></div>
-            <p>
-              Si pagaste mediante Yape, transferencia o tarjeta, adjunta el comprobante para revisión.
-            </p>
-            <form className="form" onSubmit={submitVoucher}>
-              <label>
-                Medio de pago
-                <select name="medio" required>
-                  <option value="5">Yape</option>
-                  <option value="3">Transferencia</option>
-                  <option value="2">Tarjeta</option>
-                </select>
-              </label>
-              <label>
-                Voucher de pago
-                <input
-                  name="archivo"
-                  type="file"
-                  accept="application/pdf,image/jpeg,image/png"
-                  required
-                />
-              </label>
-              <button className="primary" disabled={loading}>
-                {loading ? "Enviando…" : "Enviar voucher para revisión"}
-              </button>
-            </form>
           </section>
         </Page>
       )}
@@ -894,6 +843,7 @@ function App() {
               >
                 Revisar pagos
               </button>
+              <button className={adminTab === "tarifas" ? "active" : ""} onClick={() => setAdminTab("tarifas")}>Tarifas</button>
               <button disabled>Solicitudes</button>
               <button disabled>Inspecciones</button>
               <button disabled>Cajas y tarifas</button>
@@ -908,7 +858,7 @@ function App() {
               </button>
             </aside>
             <section className="panel admin-content">
-              {adminTab === "pagos" ? (
+              {adminTab === "tarifas" ? <><span className="eyebrow">Configuración</span><h2>Tarifas de trámites</h2><p>Los cambios se aplican a las solicitudes registradas después de guardar.</p><TariffManager session={session} notify={portalNotify}/></> : adminTab === "pagos" ? (
                 <>
                   <span className="eyebrow">Supervisión</span>
                   <h2>Vouchers pendientes</h2>
