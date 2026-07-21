@@ -1,0 +1,45 @@
+services:
+  - type: web
+    name: mpct-tramites-staging
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    region: oregon
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: ASPNETCORE_URLS
+        value: http://+:10000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mpct-tramites-db
+          property: connectionString
+      - key: Database__MigrateOnStartup
+        value: "true"
+      - key: Jwt__Key
+        generateValue: true
+      - key: Jwt__Issuer
+        value: MpctTramites
+      - key: Jwt__Audience
+        value: MpctTramites.Web
+      - key: Seed__AdminEmail
+        sync: false
+      - key: Seed__AdminPassword
+        sync: false
+      - key: MercadoPago__AccessToken
+        sync: false
+      - key: MercadoPago__WebhookSecret
+        sync: false
+      - key: PublicUrl
+        sync: false
+
+databases:
+  - name: mpct-tramites-db
+    databaseName: mpct_tramites
+    user: mpct_app
+    plan: basic-256mb
+    region: oregon
+    ipAllowList: []

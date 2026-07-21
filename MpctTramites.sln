@@ -1,0 +1,34 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "backend", "backend", "{B7F31955-421D-40EA-A6A7-B9403CF2D546}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MpctTramites.Api", "backend\MpctTramites.Api\MpctTramites.Api.csproj", "{9A18773A-9DD4-4CCD-94FD-96B965E579FC}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MpctTramites.Api.Tests", "backend\MpctTramites.Api.Tests\MpctTramites.Api.Tests.csproj", "{DB648588-53B6-44B4-A960-8561AE97D706}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{9A18773A-9DD4-4CCD-94FD-96B965E579FC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9A18773A-9DD4-4CCD-94FD-96B965E579FC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9A18773A-9DD4-4CCD-94FD-96B965E579FC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9A18773A-9DD4-4CCD-94FD-96B965E579FC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DB648588-53B6-44B4-A960-8561AE97D706}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DB648588-53B6-44B4-A960-8561AE97D706}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DB648588-53B6-44B4-A960-8561AE97D706}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DB648588-53B6-44B4-A960-8561AE97D706}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{9A18773A-9DD4-4CCD-94FD-96B965E579FC} = {B7F31955-421D-40EA-A6A7-B9403CF2D546}
+		{DB648588-53B6-44B4-A960-8561AE97D706} = {B7F31955-421D-40EA-A6A7-B9403CF2D546}
+	EndGlobalSection
+EndGlobal
