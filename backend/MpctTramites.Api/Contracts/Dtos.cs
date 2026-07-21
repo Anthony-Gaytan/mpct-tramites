@@ -3,7 +3,7 @@ namespace MpctTramites.Api.Contracts;
 public record LoginRequest(string Email, string Password);
 public record RegistroRequest(string Email, string Password, string Nombres, string Apellidos);
 public record CrearSolicitudRequest(string Ruc, TipoSolicitud Tipo, string RepresentanteNombre, string RepresentanteDocumento, string RepresentanteEmail, string Rubro, string Actividad, decimal AreaMetrosCuadrados, string DireccionLocal);
-public record SeguimientoRequest(string Ruc, string Codigo);
+public record SeguimientoRequest(string Ruc);
 public record AbrirCajaRequest(decimal MontoInicial);
 public record PagoPresencialRequest(Guid SolicitudId, MedioPago Medio, decimal Monto);
 public record CerrarCajaRequest(decimal TotalDeclarado);

@@ -267,7 +267,7 @@ function App() {
         upload.append("archivo", archivo);
         upload.append("tipo", "PLANO_DISTRIBUCION_RIESGOS");
         const response = await fetch(
-          `${API}/solicitudes/${result.id}/documentos?codigo=${encodeURIComponent(result.codigoSeguimiento)}`,
+          `${API}/solicitudes/${result.id}/documentos?codigo=${encodeURIComponent(result.uploadToken)}`,
           {
             method: "POST",
             headers: session?.token ? { Authorization: `Bearer ${session.token}` } : {},
@@ -284,7 +284,7 @@ function App() {
       }
       setNotice({
         kind: "success",
-        text: `Solicitud ${result.numeroExpediente} registrada. Guarda tu código: ${result.codigoSeguimiento}`,
+        text: `Solicitud ${result.numeroExpediente} registrada correctamente. Podrás consultarla usando tu RUC.`,
       });
       setView(session?.user?.roles?.includes("CIUDADANO") ? "citizen" : "track");
     } catch (error) {
@@ -517,10 +517,6 @@ function App() {
                 required
                 placeholder="20XXXXXXXXX"
               />
-            </label>
-            <label>
-              Código seguro de expediente
-              <input name="codigo" required placeholder="Ej. A1B2C3D4" />
             </label>
             <button className="primary" disabled={loading}>
               {loading ? "Consultando…" : "Consultar estado"}
